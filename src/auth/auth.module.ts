@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { MailModule } from '../mail/mail.module.js';
+import { CloudinaryModule } from '../common/cloudinary/cloudinary.module.js';
 
 import { OtpService } from './otp/otp.service.js';
 import { RegistrationController } from './registration/registration.controller.js';
@@ -15,6 +16,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
 @Module({
   imports: [
     MailModule,
+    CloudinaryModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'multi_vendor_jwt_super_secret_key_2026',
       signOptions: { expiresIn: '7d' },

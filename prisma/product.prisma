@@ -1,0 +1,39 @@
+model Product {
+  id             String        @id @default(uuid())
+  name           String
+  slug           String        @unique
+  sku            String?       @unique
+  category       String
+  price          Float
+  compareAtPrice Float?
+  stock          Int           @default(0)
+  status         ProductStatus @default(ACTIVE)
+
+  summary        String?       @db.Text
+  description    String?       @db.Text
+  highlights     String[]      @default([])
+  badges         String[]      @default([])
+
+  images         String[]      @default([])
+  thumbnail      String?
+
+  specifications Json?
+
+  // Relations
+  vendorId       String?
+  vendor         VendorProfile? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+
+  createdById    String
+  createdBy      User          @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([category])
+  @@index([status])
+  @@index([vendorId])
+  @@index([createdById])
+  @@index([price])
+  @@index([createdAt])
+  @@map("products")
+}

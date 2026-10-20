@@ -15,21 +15,25 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { memoryStorage } from 'multer';
 import { RegistrationService } from './registration.service.js';
+import { CloudinaryService } from '../../common/cloudinary/cloudinary.service.js';
 import { CustomerRegisterDto } from './dto/customer-register.dto.js';
 import { VendorRegisterDto } from './dto/vendor-register.dto.js';
 import { SendOtpDto } from '../otp/dto/send-otp.dto.js';
 import { VerifyOtpDto } from '../otp/dto/verify-otp.dto.js';
 import { ResponseMessage } from '../../common/decorators/response-message.decorator.js';
 import {
-  createLogoStorage,
   imageFileFilter,
 } from '../../common/upload/multer.config.js';
 
 @ApiTags('Auth - Registration')
 @Controller('auth')
 export class RegistrationController {
-  constructor(private readonly registrationService: RegistrationService) {}
+  constructor(
+    private readonly registrationService: RegistrationService,
+    private readonly cloudinaryService: CloudinaryService,
+  ) {}
 
   @Post('customer/register')
   @HttpCode(HttpStatus.CREATED)
@@ -86,9 +90,9 @@ export class RegistrationController {
   @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(
     FileInterceptor('logo', {
-      storage: createLogoStorage('logos'),
+      storage: memoryStorage(),
       fileFilter: imageFileFilter,
-      limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max
+      limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB max
     }),
   )
   @ApiConsumes('multipart/form-data', 'application/json')
@@ -110,7 +114,7 @@ export class RegistrationController {
     @UploadedFile() file?: Express.Multer.File,
   ) {
     if (file) {
-      dto.logo = `/uploads/logos/${file.filename}`;
+      dto.logo = await this.cloudinaryService.uploadImage(file, 'agro/logos');
     }
     return this.registrationService.registerVendor(dto);
   }

@@ -1,0 +1,47 @@
+model SavedCard {
+  id                    String   @id @default(uuid())
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  cardholderName        String
+  brand                 String   @default("Visa")
+  last4                 String
+  expiry                String   // MM/YY formatted, e.g. "08/29"
+  expiryMonth           Int?
+  expiryYear            Int?
+  stripePaymentMethodId String?
+  isDefault             Boolean  @default(false)
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([userId])
+  @@map("saved_cards")
+}
+
+model Transaction {
+  id                String         @id @default(uuid())
+  orderId           String?        @unique
+  customerEmail     String?
+  vendorId          String?
+  vendor            VendorProfile? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+
+  totalAmount       Float
+  currency          String         @default("usd")
+  commissionFee     Float          // 2% platform fee kept by admin
+  vendorAmount      Float          // 98% vendor payout
+
+  stripePaymentId   String?        @unique
+  status            PaymentStatus  @default(PENDING)
+  payoutStatus      PayoutStatus   @default(PENDING)
+  payoutScheduledAt DateTime?
+  payoutCompletedAt DateTime?
+
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([vendorId])
+  @@index([status])
+  @@index([payoutStatus])
+  @@map("transactions")
+}

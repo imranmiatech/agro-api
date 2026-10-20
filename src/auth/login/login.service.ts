@@ -84,6 +84,7 @@ export class LoginService {
         id: user.id,
         name: user.name,
         email: user.email,
+        avatar: user.avatar,
         role: user.role,
         status: user.status,
         vendorProfile: user.vendorProfile

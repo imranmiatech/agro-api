@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -40,16 +41,6 @@ export class UsersController {
     type: UserMetricsDataDto,
   })
   async getUserMetrics() {
-    return this.usersService.getUserMetrics();
-  }
-
-  @Get('admin/metrics')
-  @ResponseMessage('User metrics retrieved successfully')
-  @ApiOperation({
-    summary: 'Get User Metrics (Admin Alias)',
-    description: 'Alias route for /users/metrics for admin integrations.',
-  })
-  async getAdminUserMetrics() {
     return this.usersService.getUserMetrics();
   }
 
@@ -99,5 +90,20 @@ export class UsersController {
     @Body() dto: UpdateUserStatusDto,
   ) {
     return this.usersService.updateUserStatus(id, dto);
+  }
+
+  @Delete(':id')
+  @ResponseMessage('User deleted successfully')
+  @ApiOperation({
+    summary: 'Delete User Account (Admin)',
+    description: 'Permanently removes a user account and associated profile.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'User deleted successfully',
+  })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async deleteUser(@Param('id') id: string) {
+    return this.usersService.deleteUser(id);
   }
 }

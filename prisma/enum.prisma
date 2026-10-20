@@ -17,8 +17,28 @@ enum VendorStatus {
   SUSPENDED
 }
 
+enum ProductStatus {
+  ACTIVE
+  SUSPENDED
+  OUT_OF_STOCK
+}
+
 enum OtpType {
   VENDOR_REGISTRATION
   FORGOT_PASSWORD
   EMAIL_VERIFICATION
 }
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+

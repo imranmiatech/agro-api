@@ -144,6 +144,7 @@ export class RegistrationService {
         name: dto.contactPerson,
         email,
         password: hashedPassword,
+        avatar: dto.logo,
         role: 'VENDOR',
         status: 'INACTIVE', // Awaiting admin approval
         isEmailVerified: true,

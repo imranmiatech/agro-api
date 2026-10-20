@@ -7,6 +7,8 @@ import { AuthModule } from './auth/auth.module.js';
 import { ProfileModule } from './profile/profile.module.js';
 import { MailModule } from './mail/mail.module.js';
 import { UsersModule } from './users/users.module.js';
+import { ProductsModule } from './products/products.module.js';
+import { BillingModule } from './billing/billing.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -17,6 +19,8 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     AuthModule,
     ProfileModule,
     UsersModule,
+    ProductsModule,
+    BillingModule,
     // Distributed tracing, auto-correlated logs, request/job metrics, error
     // telemetry, alarms, and more — out of the box. Sign up at https://observe.nestjs.com
     ObserveModule.forRoot({

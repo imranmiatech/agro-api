@@ -23,6 +23,7 @@ export class ProfileService {
         id: true,
         name: true,
         email: true,
+        avatar: true,
         role: true,
         status: true,
         isEmailVerified: true,
@@ -76,12 +77,17 @@ export class ProfileService {
 
     return this.prisma.$transaction(async (tx) => {
       // 1. Update basic user details if provided
+      const userDataToUpdate: { name?: string; avatar?: string } = {};
       if (dto.name || dto.contactPerson) {
+        userDataToUpdate.name = dto.name || dto.contactPerson;
+      }
+      if (dto.logo) {
+        userDataToUpdate.avatar = dto.logo;
+      }
+      if (Object.keys(userDataToUpdate).length > 0) {
         await tx.user.update({
           where: { id: userId },
-          data: {
-            name: dto.name || dto.contactPerson,
-          },
+          data: userDataToUpdate,
         });
       }
 
