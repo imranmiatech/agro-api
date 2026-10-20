@@ -1,0 +1,24 @@
+enum Role {
+  CUSTOMER
+  VENDOR
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum VendorStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum OtpType {
+  VENDOR_REGISTRATION
+  FORGOT_PASSWORD
+  EMAIL_VERIFICATION
+}

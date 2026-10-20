@@ -1,0 +1,12 @@
+model OtpVerification {
+  id        String   @id @default(uuid())
+  email     String
+  otpCode   String
+  type      OtpType  @default(VENDOR_REGISTRATION)
+  expiresAt DateTime
+  isUsed    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([email, type])
+  @@map("otp_verifications")
+}

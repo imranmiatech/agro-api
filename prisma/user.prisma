@@ -1,0 +1,61 @@
+model User {
+  id              String         @id @default(uuid())
+  name            String
+  email           String         @unique
+  password        String
+  role            Role           @default(CUSTOMER)
+  status          UserStatus     @default(ACTIVE)
+  isEmailVerified Boolean        @default(false)
+  vendorProfile   VendorProfile?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model VendorProfile {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Step 1: Business Details
+  logo             String?
+  businessName     String
+  slug             String? @unique
+  shortDescription String? @db.Text
+  businessEmail    String
+  businessPhone    String?
+  category         String?
+
+  // Step 2: OTP Verification
+  isOtpVerified Boolean @default(false)
+
+  // Step 3: Business Location
+  country      String
+  city         String
+  address      String?
+  openingHours String?
+
+  // Step 4: Contact Information
+  contactPerson String
+  contactRole   String?
+  contactEmail  String
+  contactPhone  String
+
+  // Admin Moderation
+  status          VendorStatus @default(PENDING)
+  rejectionReason String?      @db.Text
+  suspendedReason String?      @db.Text
+  approvedAt      DateTime?
+  suspendedAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([businessEmail])
+  @@index([status])
+  @@index([category])
+  @@map("vendor_profiles")
+}
