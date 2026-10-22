@@ -8,6 +8,7 @@ model User {
   status          UserStatus     @default(ACTIVE)
   isEmailVerified Boolean        @default(false)
   vendorProfile   VendorProfile?
+  expertProfile   ExpertProfile?
   products        Product[]
   stripeCustomerId String?
   savedCards       SavedCard[]

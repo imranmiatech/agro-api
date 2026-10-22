@@ -2,6 +2,7 @@ enum Role {
   CUSTOMER
   VENDOR
   ADMIN
+  EXPERT
 }
 
 enum UserStatus {
@@ -46,5 +47,11 @@ enum ContentStatus {
   DRAFT
   PUBLISHED
   ARCHIVED
+}
+
+enum ContactStatus {
+  PENDING
+  IN_PROGRESS
+  RESOLVED
 }
 

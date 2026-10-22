@@ -29,7 +29,7 @@ export class LoginService {
 
     const user = await this.prisma.user.findUnique({
       where: { email },
-      include: { vendorProfile: true },
+      include: { vendorProfile: true, expertProfile: true },
     });
 
     if (!user) {
@@ -94,6 +94,16 @@ export class LoginService {
               slug: user.vendorProfile.slug,
               logo: user.vendorProfile.logo,
               status: user.vendorProfile.status,
+            }
+          : undefined,
+        expertProfile: user.expertProfile
+          ? {
+              id: user.expertProfile.id,
+              specialization: user.expertProfile.specialization,
+              designation: user.expertProfile.designation,
+              phone: user.expertProfile.phone,
+              rating: user.expertProfile.rating,
+              isAvailableForSupport: user.expertProfile.isAvailableForSupport,
             }
           : undefined,
       },

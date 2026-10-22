@@ -1,0 +1,265 @@
+[
+  {
+    "id": "SL-2026-8941",
+    "farmerName": "Md. Rafiqul Islam",
+    "phone": "+880 1712-345678",
+    "email": "rafiqul.farm@gmail.com",
+    "district": "Bogura",
+    "upazila": "Sherpur",
+    "villagePlot": "Kashipur, Plot #14-B",
+    "landArea": "4.5 Bigha",
+    "targetCrop": "Boro Rice & Hybrid Tomato",
+    "packageId": "pkg-standard",
+    "packageName": "Standard 16-Parameter Lab Diagnostic",
+    "amount": 1650,
+    "pickupMethod": "Agent Field Pickup",
+    "paymentMethod": "bKash",
+    "transactionId": "BK9X77421L",
+    "paymentStatus": "Paid",
+    "status": "Lab Testing",
+    "requestDate": "10 Oct 2026",
+    "completedDate": "13 Oct 2026",
+    "labReport": {
+      "sampleId": "SL-2026-8941",
+      "reportDate": "13 Oct 2026",
+      "soilTexture": "Clay Loam (Rich Alluvial)",
+      "labTechnician": "Dr. Nazmul Huda (PhD, Soil Science)",
+      "accreditation": "ISO/IEC 17025 Accredited AgriLab Bogura",
+      "overallHealthScore": 84,
+      "parameters": [
+        {
+          "name": "Soil pH",
+          "unit": "pH Scale",
+          "measuredValue": 6.4,
+          "optimalRange": "6.0 - 7.0",
+          "status": "Optimal"
+        },
+        {
+          "name": "Available Nitrogen (N)",
+          "unit": "kg/ha",
+          "measuredValue": 142,
+          "optimalRange": "200 - 300",
+          "status": "Deficient"
+        },
+        {
+          "name": "Available Phosphorus (P)",
+          "unit": "ppm",
+          "measuredValue": 24.5,
+          "optimalRange": "18 - 30",
+          "status": "Optimal"
+        },
+        {
+          "name": "Available Potassium (K)",
+          "unit": "ppm",
+          "measuredValue": 185,
+          "optimalRange": "150 - 250",
+          "status": "Optimal"
+        },
+        {
+          "name": "Organic Carbon",
+          "unit": "%",
+          "measuredValue": "1.32%",
+          "optimalRange": "1.50 - 2.50%",
+          "status": "Moderate"
+        },
+        {
+          "name": "Available Zinc (Zn)",
+          "unit": "ppm",
+          "measuredValue": 0.72,
+          "optimalRange": "1.00 - 2.50",
+          "status": "Deficient"
+        },
+        {
+          "name": "Available Sulfur (S)",
+          "unit": "ppm",
+          "measuredValue": 16.8,
+          "optimalRange": "15.0 - 25.0",
+          "status": "Optimal"
+        },
+        {
+          "name": "Boron (B)",
+          "unit": "ppm",
+          "measuredValue": 0.38,
+          "optimalRange": "0.50 - 1.20",
+          "status": "Deficient"
+        },
+        {
+          "name": "Electrical Conductivity (EC)",
+          "unit": "dS/m",
+          "measuredValue": 0.42,
+          "optimalRange": "< 1.0 (Non-saline)",
+          "status": "Optimal"
+        },
+        {
+          "name": "Calcium (Ca)",
+          "unit": "meq/100g",
+          "measuredValue": 8.4,
+          "optimalRange": "6.0 - 12.0",
+          "status": "Optimal"
+        }
+      ],
+      "fertilizerPlan": [
+        {
+          "fertilizer": "Urea (Nitrogen Booster)",
+          "dosePerBigha": "28 kg",
+          "applicationStage": "Split in 3 doses (Basal, Tillering, Panicle)",
+          "purpose": "Restore critical nitrogen deficit for vigorous vegetative growth"
+        },
+        {
+          "fertilizer": "Triple Super Phosphate (TSP)",
+          "dosePerBigha": "14 kg",
+          "applicationStage": "Full basal application during final ploughing",
+          "purpose": "Sustain strong root network and early tillering"
+        },
+        {
+          "fertilizer": "Zinc Sulfate (Heptahydrate 21%)",
+          "dosePerBigha": "2.5 kg",
+          "applicationStage": "Basal dressing with organic manure",
+          "purpose": "Correct severe zinc deficiency and prevent Khaira disease"
+        },
+        {
+          "fertilizer": "Organic Vermicompost",
+          "dosePerBigha": "120 kg",
+          "applicationStage": "Broadcast 7 days before transplantation",
+          "purpose": "Elevate organic carbon and beneficial soil biological count"
+        }
+      ],
+      "aiRecommendations": [
+        "Soil pH of 6.4 is in the ideal range; avoid liming as it will reduce phosphorus availability.",
+        "Nitrogen and Zinc are primary limiting factors in this plot. Apply zinc sulfate strictly at planting.",
+        "Increase organic matter by incorporating crop residues and applying 120kg/bigha vermicompost.",
+        "Maintain shallow 2-3cm intermittent wetting and drying (AWD) irrigation during tillering."
+      ]
+    }
+  },
+  {
+    "id": "SL-2026-8942",
+    "farmerName": "Anisur Rahman",
+    "phone": "+880 1819-876543",
+    "email": "anis.agro@gmail.com",
+    "district": "Rajshahi",
+    "upazila": "Paba",
+    "villagePlot": "Harian, Mango Orchard Sector 3",
+    "landArea": "8 Bigha",
+    "targetCrop": "Himsagar & Amrapali Mango",
+    "packageId": "pkg-advanced",
+    "packageName": "Complete 24-Parameter AI Soil & Microbial Suite",
+    "amount": 2900,
+    "pickupMethod": "Agent Field Pickup",
+    "paymentMethod": "Nagad",
+    "transactionId": "NG7820119X",
+    "paymentStatus": "Paid",
+    "status": "Completed",
+    "requestDate": "08 Oct 2026",
+    "completedDate": "12 Oct 2026",
+    "labReport": {
+      "sampleId": "SL-2026-8942",
+      "reportDate": "12 Oct 2026",
+      "soilTexture": "Sandy Loam",
+      "labTechnician": "Prof. Farhana Yasmin (Chief Agronomist)",
+      "accreditation": "ISO/IEC 17025 Accredited AgriLab Rajshahi",
+      "overallHealthScore": 88,
+      "parameters": [
+        {
+          "name": "Soil pH",
+          "unit": "pH Scale",
+          "measuredValue": 6.8,
+          "optimalRange": "6.2 - 7.5",
+          "status": "Optimal"
+        },
+        {
+          "name": "Available Nitrogen (N)",
+          "unit": "kg/ha",
+          "measuredValue": 210,
+          "optimalRange": "200 - 300",
+          "status": "Optimal"
+        },
+        {
+          "name": "Available Phosphorus (P)",
+          "unit": "ppm",
+          "measuredValue": 28,
+          "optimalRange": "20 - 35",
+          "status": "Optimal"
+        },
+        {
+          "name": "Available Potassium (K)",
+          "unit": "ppm",
+          "measuredValue": 240,
+          "optimalRange": "180 - 280",
+          "status": "Optimal"
+        },
+        {
+          "name": "Boron (B)",
+          "unit": "ppm",
+          "measuredValue": 0.95,
+          "optimalRange": "0.80 - 1.50",
+          "status": "Optimal"
+        },
+        {
+          "name": "Zinc (Zn)",
+          "unit": "ppm",
+          "measuredValue": 1.45,
+          "optimalRange": "1.20 - 2.50",
+          "status": "Optimal"
+        }
+      ],
+      "fertilizerPlan": [
+        {
+          "fertilizer": "Muriate of Potash (MOP)",
+          "dosePerBigha": "35 kg",
+          "applicationStage": "Post-monsoon ring trench application",
+          "purpose": "Enhance fruit brix sweetness and uniform fruit development"
+        },
+        {
+          "fertilizer": "Solubor Boron 20%",
+          "dosePerBigha": "1.5 kg",
+          "applicationStage": "Pre-flowering foliar spray at 2g/L",
+          "purpose": "Prevent fruit cracking and optimize flower retention"
+        }
+      ],
+      "aiRecommendations": [
+        "Orchard soil exhibits high organic balance and fertility with zero heavy metal contamination.",
+        "Apply Solubor spray 2 weeks prior to inflorescence emergence for peak fruit set."
+      ]
+    }
+  },
+  {
+    "id": "SL-2026-8943",
+    "farmerName": "Kabir Hossain",
+    "phone": "+880 1911-556677",
+    "email": "kabir.hossain@yahoo.com",
+    "district": "Dinajpur",
+    "upazila": "Birganj",
+    "villagePlot": "Mohonpur, North Plot 7",
+    "landArea": "3 Bigha",
+    "targetCrop": "Maize & Mustard",
+    "packageId": "pkg-basic",
+    "packageName": "Essential Soil Fertility Package",
+    "amount": 850,
+    "pickupMethod": "Courier Delivery",
+    "paymentMethod": "Rocket",
+    "transactionId": "RK8810231P",
+    "paymentStatus": "Paid",
+    "status": "Lab Testing",
+    "requestDate": "13 Oct 2026"
+  },
+  {
+    "id": "SL-2026-8944",
+    "farmerName": "Suraiya Begum",
+    "phone": "+880 1610-998877",
+    "email": "suraiya.begum@gmail.com",
+    "district": "Mymensingh",
+    "upazila": "Trishal",
+    "villagePlot": "Boilor, Agro Farm 2",
+    "landArea": "2 Bigha",
+    "targetCrop": "Greenhouse Capsicum & Strawberry",
+    "packageId": "pkg-standard",
+    "packageName": "Standard 16-Parameter Lab Diagnostic",
+    "amount": 1650,
+    "pickupMethod": "Agent Field Pickup",
+    "paymentMethod": "Cash on Pickup",
+    "paymentStatus": "Pending Payment",
+    "status": "Pending Pickup",
+    "requestDate": "14 Oct 2026"
+  }
+]

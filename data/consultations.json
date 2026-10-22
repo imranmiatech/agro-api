@@ -1,0 +1,129 @@
+[
+  {
+    "id": "cons-1792663453220",
+    "ticketNumber": "TK-1062",
+    "subject": "Eu modi et eum quis",
+    "category": "Seeds & Planting",
+    "crop": "Harum perspiciatis",
+    "priority": "High",
+    "status": "Resolved",
+    "createdAt": "Today at 04:04 PM",
+    "updatedAt": "Today at 04:07 PM",
+    "assignedExpert": {
+      "name": "Dr. Farhana Akter",
+      "role": "Senior Plant Pathologist",
+      "rating": 4.9,
+      "specialization": "Crop Health & Pathology"
+    },
+    "messages": [
+      {
+        "id": "msg-1792663453197",
+        "sender": "user",
+        "senderName": "Jane Smith",
+        "text": "Incididunt placeat",
+        "timestamp": "16:04"
+      },
+      {
+        "id": "msg-1792663460579",
+        "sender": "user",
+        "senderName": "Jane Smith",
+        "text": "Est excepturi ipsa l",
+        "timestamp": "04:04 PM"
+      },
+      {
+        "id": "msg-1792663463594",
+        "sender": "expert",
+        "senderName": "Dr. Farhana Akter",
+        "senderRole": "Senior Plant Pathologist",
+        "text": "Thank you for the additional details. Our agronomist team has reviewed this and recommends monitoring soil moisture for 48 hours.",
+        "timestamp": "04:04 PM"
+      }
+    ]
+  },
+  {
+    "id": "cons-001",
+    "ticketNumber": "TK-2041",
+    "subject": "Yellow mosaic patches on Boro paddy leaves in Comilla region",
+    "category": "Crop Disease",
+    "crop": "Boro Paddy (BRRI dhan29)",
+    "priority": "High",
+    "status": "Waiting for Reply",
+    "createdAt": "Today at 01:45 PM",
+    "updatedAt": "Today at 02:10 PM",
+    "assignedExpert": {
+      "name": "Dr. Farhana Akter",
+      "role": "Senior Plant Pathologist",
+      "rating": 4.9,
+      "specialization": "Rice Disease Management & Integrated Pest Control"
+    },
+    "messages": [
+      {
+        "id": "msg-101",
+        "sender": "user",
+        "senderName": "Kamal Harvey",
+        "text": "Hello doctor, my 35-day-old Boro seedlings are developing irregular pale-yellow mosaic mottling on young leaf tips. Stems look somewhat stunted. I took two field photos. Could you prescribe treatment?",
+        "timestamp": "01:45 PM",
+        "attachments": [
+          "https://images.unsplash.com/photo-1530836369250-ef72a3f5cda8?auto=format&fit=crop&w=800&q=80"
+        ]
+      },
+      {
+        "id": "msg-102",
+        "sender": "expert",
+        "senderName": "Dr. Farhana Akter",
+        "senderRole": "Senior Plant Pathologist",
+        "text": "Greetings Kamal. Based on the chlorotic leaf streaks and vein clearing in your photo, this is early Rice Tungro Virus (RTV) transmitted by Green Leafhoppers (GLH). Stop any additional urea top-dressing immediately as high nitrogen promotes leafhopper multiplication.",
+        "timestamp": "02:00 PM"
+      },
+      {
+        "id": "msg-103",
+        "sender": "user",
+        "senderName": "Kamal Harvey",
+        "text": "Understood. What insecticide and dosage should I spray immediately to protect the remaining 2 acres?",
+        "timestamp": "02:10 PM"
+      }
+    ]
+  },
+  {
+    "id": "cons-002",
+    "ticketNumber": "TK-2035",
+    "subject": "Potato late blight prevention schedule before cold wave",
+    "category": "Pest & Blight",
+    "crop": "Potato (Diamant)",
+    "priority": "Urgent",
+    "status": "Open",
+    "createdAt": "Yesterday at 11:30 AM",
+    "updatedAt": "Today at 03:44 PM",
+    "assignedExpert": {
+      "name": "Prof. Md. Rafiqul Islam",
+      "role": "Agronomy & Crop Specialist",
+      "rating": 5,
+      "specialization": "Tuber Crops & Horticultural Pathology"
+    },
+    "messages": [
+      {
+        "id": "msg-201",
+        "sender": "user",
+        "senderName": "Rahim Uddin",
+        "text": "Due to heavy fog and cold weather in Bogura, my potato plants are showing dark water-soaked lesions on the tips of leaflets. Is Mancozeb 75% enough or should I use systemic fungicides?",
+        "timestamp": "Yesterday, 11:30 AM"
+      },
+      {
+        "id": "msg-202",
+        "sender": "expert",
+        "senderName": "Prof. Md. Rafiqul Islam",
+        "senderRole": "Agronomy Specialist",
+        "text": "Greetings! Once active water-soaked lesions appear, preventive contact fungicides like Mancozeb alone will not cure the infected tissue. Apply systemic combination: Metalaxyl 8% + Mancozeb 64% (e.g. Ridomil Gold) at 2g per liter of clean water.",
+        "timestamp": "Today, 10:15 AM"
+      },
+      {
+        "id": "msg-1792662299864",
+        "sender": "expert",
+        "senderName": "System Administrator rr",
+        "senderRole": "Senior Agronomist",
+        "text": "tyjuy",
+        "timestamp": "03:44 PM"
+      }
+    ]
+  }
+]

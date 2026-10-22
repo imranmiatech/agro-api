@@ -1,0 +1,18 @@
+model ContactInquiry {
+  id           String        @id @default(uuid())
+  name         String
+  email        String
+  phone        String?
+  subject      String?
+  message      String        @db.Text
+  status       ContactStatus @default(PENDING)
+  replyMessage String?       @db.Text
+  resolvedAt   DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([status])
+  @@index([email])
+  @@index([createdAt])
+  @@map("contact_inquiries")
+}

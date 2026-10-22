@@ -1,0 +1,20 @@
+model ExpertProfile {
+  id                    String   @id @default(uuid())
+  userId                String   @unique
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phone                 String?
+  specialization        String
+  designation           String   @default("Agricultural Specialist")
+  experienceYears       String   @default("3+ years")
+  bio                   String?  @db.Text
+  isAvailableForSupport Boolean  @default(true)
+  assignedTicketsCount  Int      @default(0)
+  rating                Float    @default(5.0)
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([userId])
+  @@index([specialization])
+  @@map("expert_profiles")
+}
