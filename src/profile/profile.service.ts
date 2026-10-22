@@ -14,7 +14,7 @@ export class ProfileService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Get Current Authenticated User & Vendor Profile
+   * 1. Get Current Authenticated User Profile (All Roles: CUSTOMER, VENDOR, ADMIN)
    */
   async getProfile(userId: string) {
     const user = await this.prisma.user.findUnique({
@@ -63,7 +63,7 @@ export class ProfileService {
   }
 
   /**
-   * Update Profile (Customer & Vendor)
+   * 2. Update Profile for ANY authenticated user (CUSTOMER, VENDOR, ADMIN)
    */
   async updateProfile(userId: string, dto: UpdateProfileDto) {
     const user = await this.prisma.user.findUnique({
@@ -76,14 +76,19 @@ export class ProfileService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      // 1. Update basic user details if provided
+      // 1. Update basic user details for ANY role (Customer, Admin, Vendor)
       const userDataToUpdate: { name?: string; avatar?: string } = {};
-      if (dto.name || dto.contactPerson) {
-        userDataToUpdate.name = dto.name || dto.contactPerson;
+
+      const nameToUpdate = dto.name || dto.contactPerson;
+      if (nameToUpdate && nameToUpdate.trim()) {
+        userDataToUpdate.name = nameToUpdate.trim();
       }
-      if (dto.logo) {
-        userDataToUpdate.avatar = dto.logo;
+
+      const avatarToUpdate = dto.avatar || dto.logo;
+      if (avatarToUpdate && typeof avatarToUpdate === 'string') {
+        userDataToUpdate.avatar = avatarToUpdate.trim();
       }
+
       if (Object.keys(userDataToUpdate).length > 0) {
         await tx.user.update({
           where: { id: userId },
@@ -91,25 +96,28 @@ export class ProfileService {
         });
       }
 
-      // 2. Update VendorProfile if user is a VENDOR
+      // 2. If user is a VENDOR and has a VendorProfile, update vendor storefront fields
       if (user.role === 'VENDOR' && user.vendorProfile) {
-        await tx.vendorProfile.update({
-          where: { userId },
-          data: {
-            businessName: dto.businessName ?? undefined,
-            logo: dto.logo ?? undefined,
-            shortDescription: dto.shortDescription ?? undefined,
-            businessPhone: dto.businessPhone ?? undefined,
-            category: dto.category ?? undefined,
-            country: dto.country ?? undefined,
-            city: dto.city ?? undefined,
-            address: dto.address ?? undefined,
-            openingHours: dto.openingHours ?? undefined,
-            contactPerson: dto.contactPerson ?? dto.name ?? undefined,
-            contactRole: dto.contactRole ?? undefined,
-            contactPhone: dto.contactPhone ?? undefined,
-          },
-        });
+        const vendorDataToUpdate: any = {};
+        if (dto.businessName?.trim()) vendorDataToUpdate.businessName = dto.businessName.trim();
+        if (avatarToUpdate && typeof avatarToUpdate === 'string') vendorDataToUpdate.logo = avatarToUpdate.trim();
+        if (dto.shortDescription !== undefined) vendorDataToUpdate.shortDescription = dto.shortDescription?.trim() || null;
+        if (dto.businessPhone !== undefined) vendorDataToUpdate.businessPhone = dto.businessPhone?.trim() || null;
+        if (dto.category !== undefined) vendorDataToUpdate.category = dto.category?.trim() || null;
+        if (dto.country !== undefined) vendorDataToUpdate.country = dto.country?.trim() || user.vendorProfile.country;
+        if (dto.city !== undefined) vendorDataToUpdate.city = dto.city?.trim() || user.vendorProfile.city;
+        if (dto.address !== undefined) vendorDataToUpdate.address = dto.address?.trim() || null;
+        if (dto.openingHours !== undefined) vendorDataToUpdate.openingHours = dto.openingHours?.trim() || null;
+        if (nameToUpdate?.trim()) vendorDataToUpdate.contactPerson = nameToUpdate.trim();
+        if (dto.contactRole !== undefined) vendorDataToUpdate.contactRole = dto.contactRole?.trim() || null;
+        if (dto.contactPhone !== undefined) vendorDataToUpdate.contactPhone = dto.contactPhone?.trim() || user.vendorProfile.contactPhone;
+
+        if (Object.keys(vendorDataToUpdate).length > 0) {
+          await tx.vendorProfile.update({
+            where: { userId },
+            data: vendorDataToUpdate,
+          });
+        }
       }
 
       return this.getProfile(userId);
@@ -117,7 +125,7 @@ export class ProfileService {
   }
 
   /**
-   * Change Password
+   * 3. Change Account Password (All Roles: CUSTOMER, VENDOR, ADMIN)
    */
   async changePassword(userId: string, dto: ChangePasswordDto) {
     const user = await this.prisma.user.findUnique({

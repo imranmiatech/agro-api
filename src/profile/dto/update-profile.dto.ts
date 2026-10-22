@@ -2,12 +2,20 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString } from 'class-validator';
 
 export class UpdateProfileDto {
-  @ApiPropertyOptional({ example: 'Jane Smith', description: 'User or contact person name' })
+  @ApiPropertyOptional({ example: 'Jane Smith', description: 'User display name (Customer, Vendor, Admin)' })
   @IsOptional()
   @IsString()
   name?: string;
 
-  @ApiPropertyOptional({ example: 'Little Stars Nursery Ltd.', description: 'Store or business name' })
+  @ApiPropertyOptional({
+    type: 'string',
+    format: 'binary',
+    description: 'Avatar image file (PNG/JPG/WEBP) or URL for Customer, Vendor, Admin',
+  })
+  @IsOptional()
+  avatar?: any;
+
+  @ApiPropertyOptional({ example: 'Little Stars Nursery Ltd.', description: 'Store or business name (for Vendor)' })
   @IsOptional()
   @IsString()
   businessName?: string;
@@ -20,17 +28,17 @@ export class UpdateProfileDto {
   @IsOptional()
   logo?: any;
 
-  @ApiPropertyOptional({ example: 'Updated description of our store and offerings.', description: 'Short business overview' })
+  @ApiPropertyOptional({ example: 'Updated description of our store and offerings.', description: 'Short business overview (for Vendor)' })
   @IsOptional()
   @IsString()
   shortDescription?: string;
 
-  @ApiPropertyOptional({ example: '+44 7700 900000', description: 'Official business phone' })
+  @ApiPropertyOptional({ example: '+44 7700 900000', description: 'Official business phone (for Vendor)' })
   @IsOptional()
   @IsString()
   businessPhone?: string;
 
-  @ApiPropertyOptional({ example: 'Supermarket', description: 'Business category' })
+  @ApiPropertyOptional({ example: 'Supermarket', description: 'Business category (for Vendor)' })
   @IsOptional()
   @IsString()
   category?: string;
@@ -50,7 +58,7 @@ export class UpdateProfileDto {
   @IsString()
   address?: string;
 
-  @ApiPropertyOptional({ example: 'Mon–Sat 9:00–20:00', description: 'Store operational opening hours' })
+  @ApiPropertyOptional({ example: 'Mon–Sat 9:00–20:00', description: 'Store operational opening hours (for Vendor)' })
   @IsOptional()
   @IsString()
   openingHours?: string;

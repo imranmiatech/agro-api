@@ -9,6 +9,8 @@ import { MailModule } from './mail/mail.module.js';
 import { UsersModule } from './users/users.module.js';
 import { ProductsModule } from './products/products.module.js';
 import { BillingModule } from './billing/billing.module.js';
+import { PartnersModule } from './partners/partners.module.js';
+import { ContentModule } from './content/content.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -21,13 +23,8 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     UsersModule,
     ProductsModule,
     BillingModule,
-    // Distributed tracing, auto-correlated logs, request/job metrics, error
-    // telemetry, alarms, and more — out of the box. Sign up at https://observe.nestjs.com
-    ObserveModule.forRoot({
-      appKey: 'YOUR_APP_KEY',
-      appSecret: 'YOUR_APP_SECRET',
-      serviceId: 'multi-vendor-api',
-    }),
+    PartnersModule,
+    ContentModule,
   ],
   controllers: [AppController],
   providers: [AppService],

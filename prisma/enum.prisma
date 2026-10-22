@@ -42,3 +42,9 @@ enum PayoutStatus {
   FAILED
 }
 
+enum ContentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+

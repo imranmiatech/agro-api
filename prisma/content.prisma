@@ -1,0 +1,26 @@
+model Article {
+  id           String        @id @default(uuid())
+  title        String
+  slug         String        @unique
+  category     String
+  description  String?       @db.Text
+  content      String        @db.Text
+  coverImage   String?       @db.Text
+  readTime     String?       @default("5 min read")
+
+  // Author details
+  authorName   String        @default("KrishiKunjo Contributor")
+  authorRole   String?       @default("Agronomy Specialist")
+  authorAvatar String?       @db.Text
+
+  // Status
+  status       ContentStatus @default(DRAFT)
+
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([category])
+  @@index([status])
+  @@index([createdAt])
+  @@map("articles")
+}

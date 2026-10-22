@@ -3,14 +3,17 @@ import { join } from 'path';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import { AppModule, ObserveInstrument } from './app.module.js';
+import { json, urlencoded } from 'express';
+import { AppModule } from './app.module.js';
 import { setupSwagger } from './common/swagger/swagger.config.js';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor.js';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
-    instrument: ObserveInstrument,
-  });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Support large payloads (rich articles, markdown & images)
+  app.use(json({ limit: '50mb' }));
+  app.use(urlencoded({ extended: true, limit: '50mb' }));
 
   // Serve static uploads (e.g. /uploads/logos/...)
   app.useStaticAssets(join(process.cwd(), 'uploads'), {
