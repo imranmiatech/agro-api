@@ -370,4 +370,340 @@ export class MailService {
       return false;
     }
   }
+
+  /**
+   * Sends a Thank You & Consultation Resolution email to the farmer when their ticket is resolved
+   */
+  async sendConsultationResolvedEmail(
+    to: string,
+    farmerName: string,
+    ticketNumber: string,
+    subject: string,
+    expertName?: string,
+    crop?: string,
+    latestAdvice?: string,
+  ): Promise<boolean> {
+    const from =
+      process.env.SMTP_FROM ||
+      `"Krisikunjo Agri Advisory" <${process.env.SMTP_USER || 'imranmiatech@gmail.com'}>`;
+
+    const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f4f7f6; margin: 0; padding: 24px; color: #1e293b; }
+          .container { max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 18px; padding: 36px 32px; box-shadow: 0 4px 24px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; }
+          .logo { text-align: center; margin-bottom: 24px; }
+          .logo h1 { font-size: 24px; font-weight: 700; color: #0E3128; margin: 0; }
+          .logo p { font-size: 13px; color: #15803d; margin-top: 4px; font-weight: 600; }
+          .divider { height: 1px; background: #e2e8f0; margin: 20px 0; }
+          .badge { display: inline-block; font-size: 12px; font-weight: 700; color: #047857; background: #d1fae5; border: 1px solid #a7f3d0; padding: 6px 14px; border-radius: 999px; margin-bottom: 16px; }
+          .greeting { font-size: 18px; font-weight: 700; color: #0f172a; margin-bottom: 10px; }
+          .message-body { font-size: 14px; color: #475569; line-height: 1.6; margin-bottom: 20px; }
+          .ticket-card { background: #f8fafc; border-left: 4px solid #0E3128; border-radius: 10px; padding: 18px; margin: 20px 0; border: 1px solid #e2e8f0; border-left-width: 4px; }
+          .ticket-badge { font-family: monospace; font-size: 12px; font-weight: 700; color: #0E3128; background: #e6f4ea; padding: 3px 8px; border-radius: 6px; display: inline-block; margin-bottom: 10px; }
+          .info-row { margin-bottom: 8px; font-size: 13px; }
+          .info-label { font-weight: 600; color: #64748b; }
+          .info-val { color: #1e293b; font-weight: 500; }
+          .advice-box { background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 10px; padding: 16px; margin: 18px 0; }
+          .advice-title { font-size: 12px; font-weight: 700; color: #065f46; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: flex; items-center: gap-1; }
+          .advice-text { font-size: 14px; color: #064e3b; line-height: 1.6; white-space: pre-line; }
+          .thank-you-note { background: #f0fdf4; border-radius: 12px; padding: 16px; text-align: center; margin: 24px 0; border: 1px dashed #86efac; }
+          .thank-you-title { font-size: 15px; font-weight: 700; color: #166534; margin-bottom: 4px; }
+          .thank-you-desc { font-size: 13px; color: #15803d; line-height: 1.5; margin: 0; }
+          .footer { font-size: 12px; color: #94a3b8; text-align: center; line-height: 1.5; margin-top: 32px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="logo">
+            <h1>Krisikunjo Agri Advisory</h1>
+            <p>Direct Agricultural Expert Support</p>
+          </div>
+          <div class="divider"></div>
+          <div style="text-align: center;">
+            <span class="badge">&#10003; Consultation Resolved</span>
+          </div>
+          <div class="greeting">Dear ${farmerName || 'Valued Farmer'},</div>
+          <p class="message-body">
+            Thank you for consulting with <strong>Krisikunjo Agricultural Advisory Service</strong>! We are pleased to inform you that your consultation ticket has been successfully reviewed and marked as <strong>Resolved</strong> by our agricultural specialist.
+          </p>
+
+          <div class="ticket-card">
+            <span class="ticket-badge">Ticket ${ticketNumber}</span>
+            <div class="info-row">
+              <span class="info-label">Topic / Issue:</span>
+              <span class="info-val"> ${subject}</span>
+            </div>
+            ${
+              crop
+                ? `<div class="info-row">
+                    <span class="info-label">Crop:</span>
+                    <span class="info-val"> ${crop}</span>
+                   </div>`
+                : ''
+            }
+            ${
+              expertName
+                ? `<div class="info-row">
+                    <span class="info-label">Assigned Specialist:</span>
+                    <span class="info-val"> ${expertName}</span>
+                   </div>`
+                : ''
+            }
+          </div>
+
+          ${
+            latestAdvice
+              ? `
+          <div class="advice-box">
+            <div class="advice-title">&#127793; Specialist Diagnosis &amp; Advice</div>
+            <div class="advice-text">${latestAdvice}</div>
+          </div>
+          `
+              : ''
+          }
+
+          <div class="thank-you-note">
+            <div class="thank-you-title">&#10024; Thank You for Choosing Krisikunjo!</div>
+            <p class="thank-you-desc">
+              We hope our expert recommendations help protect your yield and support your farming success. You can log into your Krisikunjo account anytime to rate your consultation experience or open a new consultation.
+            </p>
+          </div>
+
+          <p class="message-body" style="margin-bottom: 0;">
+            Wishing you healthy crops and a prosperous harvest,<br>
+            <strong>The Krisikunjo Agricultural Advisory Team</strong>
+          </p>
+          <div class="divider"></div>
+          <div class="footer">
+            &copy; ${new Date().getFullYear()} Krisikunjo Marketplace &amp; Agri Services. All rights reserved.<br>
+            Automated system notification &bull; Do not reply to this email
+          </div>
+        </div>
+      </body>
+    </html>
+    `;
+
+    try {
+      const info = await this.transporter.sendMail({
+        from,
+        to,
+        subject: `[Krisikunjo] Consultation #${ticketNumber} Resolved - Thank You!`,
+        text: `Hello ${farmerName},\n\nThank you for choosing Krisikunjo Expert Consultation! Your ticket #${ticketNumber} regarding "${subject}" has been marked as Resolved by our agricultural specialist${expertName ? ` (${expertName})` : ''}.\n\n${latestAdvice ? `Specialist Advice:\n${latestAdvice}\n\n` : ''}We hope this advice assists your harvest. You can review and rate your consultation on your dashboard anytime.\n\nWarm regards,\nKrisikunjo Agri Advisory Team`,
+        html,
+      });
+
+      this.logger.log(`Consultation Resolved Thank You email sent to ${to}. MessageId: ${info.messageId}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to send consultation resolved email to ${to}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Sends soil test booking confirmation & receipt email with courier sample slip instructions
+   */
+  async sendSoilTestBookedEmail(
+    to: string,
+    farmerName: string,
+    requestNumber: string,
+    packageName: string,
+    amount: number,
+    district: string,
+    upazila: string,
+    transactionId?: string,
+  ): Promise<boolean> {
+    const from =
+      process.env.SMTP_FROM ||
+      `"Krisikunjo AgriLab Diagnostic" <${process.env.SMTP_USER || 'imranmiatech@gmail.com'}>`;
+
+    const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f4f7f6; margin: 0; padding: 24px; color: #1e293b; }
+          .container { max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 18px; padding: 36px 32px; box-shadow: 0 4px 24px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; }
+          .logo { text-align: center; margin-bottom: 24px; }
+          .logo h1 { font-size: 24px; font-weight: 700; color: #0E3128; margin: 0; }
+          .logo p { font-size: 13px; color: #15803d; margin-top: 4px; font-weight: 600; }
+          .divider { height: 1px; background: #e2e8f0; margin: 20px 0; }
+          .badge { display: inline-block; font-size: 12px; font-weight: 700; color: #047857; background: #d1fae5; border: 1px solid #a7f3d0; padding: 6px 14px; border-radius: 999px; margin-bottom: 16px; }
+          .greeting { font-size: 18px; font-weight: 700; color: #0f172a; margin-bottom: 10px; }
+          .message-body { font-size: 14px; color: #475569; line-height: 1.6; margin-bottom: 20px; }
+          .card { background: #f8fafc; border-left: 4px solid #0E3128; border-radius: 10px; padding: 18px; margin: 20px 0; border: 1px solid #e2e8f0; border-left-width: 4px; }
+          .code-badge { font-family: monospace; font-size: 13px; font-weight: 700; color: #0E3128; background: #e6f4ea; padding: 4px 10px; border-radius: 6px; display: inline-block; margin-bottom: 10px; }
+          .info-row { margin-bottom: 8px; font-size: 13px; }
+          .info-label { font-weight: 600; color: #64748b; }
+          .info-val { color: #1e293b; font-weight: 500; }
+          .instruction-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 16px; margin: 18px 0; }
+          .instruction-title { font-size: 12px; font-weight: 700; color: #1e40af; text-transform: uppercase; margin-bottom: 6px; }
+          .footer { font-size: 12px; color: #94a3b8; text-align: center; line-height: 1.5; margin-top: 32px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="logo">
+            <h1>Krisikunjo AgriLab Diagnostic</h1>
+            <p>Certified Soil & Nutrient Testing Service</p>
+          </div>
+          <div class="divider"></div>
+          <div style="text-align: center;">
+            <span class="badge">&#10003; Soil Test Booked &amp; Paid (Stripe Verified)</span>
+          </div>
+          <div class="greeting">Dear ${farmerName || 'Farmer'},</div>
+          <p class="message-body">
+            Thank you for booking your agricultural soil test with <strong>Krisikunjo AgriLab</strong>! Your payment of <strong>${amount} BDT</strong> has been successfully processed and verified.
+          </p>
+
+          <div class="card">
+            <span class="code-badge">Request ID: ${requestNumber}</span>
+            <div class="info-row">
+              <span class="info-label">Package:</span>
+              <span class="info-val"> ${packageName}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Location:</span>
+              <span class="info-val"> ${upazila}, ${district}</span>
+            </div>
+            ${
+              transactionId
+                ? `<div class="info-row">
+                    <span class="info-label">Stripe Transaction:</span>
+                    <span class="info-val"> ${transactionId}</span>
+                   </div>`
+                : ''
+            }
+          </div>
+
+          <div class="instruction-box">
+            <div class="instruction-title">Next Steps for Soil Sample Collection</div>
+            <p style="margin: 0; font-size: 13px; color: #1e3a8a; line-height: 1.5;">
+              1. Collect 500g of topsoil (0-15cm depth) from 5 zigzag spots in your plot.<br>
+              2. Mix thoroughly, shade dry, and pack in a clean zip-lock bag.<br>
+              3. Write <strong>${requestNumber}</strong> clearly on the bag and hand over to our pickup agent or send via courier.<br>
+              4. You will receive your complete certified diagnostic report within <strong>48-72 hours</strong>.
+            </p>
+          </div>
+
+          <div class="footer">
+            &copy; ${new Date().getFullYear()} Krisikunjo AgriLab Diagnostics. All rights reserved.<br>
+            Automated system notification &bull; Do not reply to this email
+          </div>
+        </div>
+      </body>
+    </html>
+    `;
+
+    try {
+      const info = await this.transporter.sendMail({
+        from,
+        to,
+        subject: `[Krisikunjo] Soil Test Booked Successfully - #${requestNumber}`,
+        text: `Hello ${farmerName},\n\nYour soil test request #${requestNumber} (${packageName}) has been booked and paid (${amount} BDT). Please prepare your soil sample labeled with #${requestNumber}.\n\nThank you,\nKrisikunjo AgriLab Diagnostic Team`,
+        html,
+      });
+
+      this.logger.log(`Soil test booking email sent to ${to}. MessageId: ${info.messageId}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to send soil test booking email to ${to}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Sends notification when expert publishes the laboratory soil test report
+   */
+  async sendSoilTestReportPublishedEmail(
+    to: string,
+    farmerName: string,
+    requestNumber: string,
+    overallHealthScore: number,
+    soilTexture: string,
+    crop: string,
+  ): Promise<boolean> {
+    const from =
+      process.env.SMTP_FROM ||
+      `"Krisikunjo AgriLab Diagnostic" <${process.env.SMTP_USER || 'imranmiatech@gmail.com'}>`;
+    const clientUrl = (process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:5174').replace(/\/+$/, '');
+    const requestsUrl = `${clientUrl}/soil-test/requests`;
+
+    const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f4f7f6; margin: 0; padding: 24px; color: #1e293b; }
+          .container { max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 18px; padding: 36px 32px; box-shadow: 0 4px 24px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; }
+          .logo { text-align: center; margin-bottom: 24px; }
+          .logo h1 { font-size: 24px; font-weight: 700; color: #0E3128; margin: 0; }
+          .logo p { font-size: 13px; color: #15803d; margin-top: 4px; font-weight: 600; }
+          .divider { height: 1px; background: #e2e8f0; margin: 20px 0; }
+          .badge { display: inline-block; font-size: 12px; font-weight: 700; color: #047857; background: #d1fae5; border: 1px solid #a7f3d0; padding: 6px 14px; border-radius: 999px; margin-bottom: 16px; }
+          .greeting { font-size: 18px; font-weight: 700; color: #0f172a; margin-bottom: 10px; }
+          .message-body { font-size: 14px; color: #475569; line-height: 1.6; margin-bottom: 20px; }
+          .score-card { background: #f0fdf4; border: 2px dashed #0E3128; border-radius: 12px; padding: 20px; text-align: center; margin: 20px 0; }
+          .score-val { font-size: 36px; font-weight: 800; color: #0E3128; }
+          .footer { font-size: 12px; color: #94a3b8; text-align: center; line-height: 1.5; margin-top: 32px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="logo">
+            <h1>Krisikunjo AgriLab Diagnostic</h1>
+            <p>Official Soil Diagnostic Certificate</p>
+          </div>
+          <div class="divider"></div>
+          <div style="text-align: center;">
+            <span class="badge">&#10003; Diagnostic Report Published</span>
+          </div>
+          <div class="greeting">Dear ${farmerName || 'Farmer'},</div>
+          <p class="message-body">
+            Great news! Your laboratory soil analysis for request <strong>#${requestNumber}</strong> (${crop || 'Farmland'}) has been completed and verified by our soil scientist.
+          </p>
+
+          <div class="score-card">
+            <div style="font-size: 12px; font-weight: 700; color: #15803d; text-transform: uppercase;">Soil Health Score</div>
+            <div class="score-val">${overallHealthScore}/100</div>
+            <div style="font-size: 13px; color: #475569; margin-top: 6px;">Texture: <strong>${soilTexture}</strong></div>
+          </div>
+
+          <p class="message-body">
+            You can now log into your Krisikunjo portal at <a href="${requestsUrl}" style="color: #0E3128; font-weight: 700;">${requestsUrl}</a> to view your full parameter breakdown, download your official PDF diagnostic certificate, and inspect your tailored fertilizer dosage plan.
+          </p>
+
+          <div class="footer">
+            &copy; ${new Date().getFullYear()} Krisikunjo AgriLab Diagnostics. All rights reserved.<br>
+            Automated system notification &bull; Do not reply to this email
+          </div>
+        </div>
+      </body>
+    </html>
+    `;
+
+    try {
+      const info = await this.transporter.sendMail({
+        from,
+        to,
+        subject: `[Krisikunjo] Your Soil Diagnostic Report is Ready! - #${requestNumber}`,
+        text: `Hello ${farmerName},\n\nYour soil diagnostic report for #${requestNumber} is ready with an overall score of ${overallHealthScore}/100. Visit ${requestsUrl} to view and download your full PDF certificate.\n\nWarm regards,\nKrisikunjo AgriLab Team`,
+        html,
+      });
+
+      this.logger.log(`Soil test report published email sent to ${to}. MessageId: ${info.messageId}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to send soil test report published email to ${to}:`, error);
+      return false;
+    }
+  }
 }
+
+

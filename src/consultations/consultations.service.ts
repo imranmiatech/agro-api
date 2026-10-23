@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   CreateConsultationDto,
@@ -7,107 +7,19 @@ import {
   RateConsultationDto,
 } from './dto/create-consultation.dto.js';
 import { Role } from '../generated/prisma/enums.js';
+import { MailService } from '../mail/mail.service.js';
 
 @Injectable()
-export class ConsultationsService implements OnModuleInit {
+export class ConsultationsService {
   private readonly logger = new Logger(ConsultationsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
-
-  async onModuleInit() {
-    const count = await this.prisma.consultationTicket.count();
-    if (count === 0) {
-      this.logger.log('Seeding initial consultation tickets in database...');
-      const expert = await this.prisma.user.findFirst({
-        where: { role: Role.EXPERT },
-        include: { expertProfile: true },
-      });
-
-      const expertName = expert?.name || 'Dr. Farhana Akter';
-      const expertRole = expert?.expertProfile?.designation || 'Senior Plant Pathologist';
-      const expertSpecialization =
-        expert?.expertProfile?.specialization ||
-        'Rice Disease Management & Integrated Pest Control';
-
-      // Seed Ticket 1: Rice Tungro Virus
-      await this.prisma.consultationTicket.create({
-        data: {
-          ticketNumber: 'TK-2041',
-          subject: 'Yellow mosaic patches on Boro paddy leaves in Comilla region',
-          category: 'Crop Disease',
-          crop: 'Boro Paddy (BRRI dhan29)',
-          priority: 'High',
-          status: 'Waiting for Reply',
-          farmerName: 'Kamal Harvey',
-          assignedExpertId: expert?.id || null,
-          assignedExpertName: expertName,
-          assignedExpertRole: expertRole,
-          assignedExpertSpecialization: expertSpecialization,
-          assignedExpertRating: 4.9,
-          messages: {
-            create: [
-              {
-                sender: 'user',
-                senderName: 'Kamal Harvey',
-                text: 'Hello doctor, my 35-day-old Boro seedlings are developing irregular pale-yellow mosaic mottling on young leaf tips. Stems look somewhat stunted. I took two field photos. Could you prescribe treatment?',
-                attachments: [
-                  'https://images.unsplash.com/photo-1530836369250-ef72a3f5cda8?auto=format&fit=crop&w=800&q=80',
-                ],
-              },
-              {
-                sender: 'expert',
-                senderName: expertName,
-                senderRole: expertRole,
-                text: 'Greetings Kamal. Based on the chlorotic leaf streaks and vein clearing in your photo, this is early Rice Tungro Virus (RTV) transmitted by Green Leafhoppers (GLH). Stop any additional urea top-dressing immediately as high nitrogen promotes leafhopper multiplication.',
-              },
-              {
-                sender: 'user',
-                senderName: 'Kamal Harvey',
-                text: 'Understood. What insecticide and dosage should I spray immediately to protect the remaining 2 acres?',
-              },
-            ],
-          },
-        },
-      });
-
-      // Seed Ticket 2: Potato Late Blight
-      await this.prisma.consultationTicket.create({
-        data: {
-          ticketNumber: 'TK-2035',
-          subject: 'Potato late blight prevention schedule before cold wave',
-          category: 'Pest & Blight',
-          crop: 'Potato (Diamant)',
-          priority: 'Urgent',
-          status: 'Open',
-          farmerName: 'Rahim Uddin',
-          assignedExpertId: expert?.id || null,
-          assignedExpertName: 'Prof. Md. Rafiqul Islam',
-          assignedExpertRole: 'Agronomy Specialist',
-          assignedExpertSpecialization: 'Tuber Crops & Horticultural Pathology',
-          assignedExpertRating: 5.0,
-          messages: {
-            create: [
-              {
-                sender: 'user',
-                senderName: 'Rahim Uddin',
-                text: 'Due to heavy fog and cold weather in Bogura, my potato plants are showing dark water-soaked lesions on the tips of leaflets. Is Mancozeb 75% enough or should I use systemic fungicides?',
-              },
-              {
-                sender: 'expert',
-                senderName: 'Prof. Md. Rafiqul Islam',
-                senderRole: 'Agronomy Specialist',
-                text: 'Greetings! Once active water-soaked lesions appear, preventive contact fungicides like Mancozeb alone will not cure the infected tissue. Apply systemic combination: Metalaxyl 8% + Mancozeb 64% (e.g. Ridomil Gold) at 2g per liter of clean water.',
-              },
-            ],
-          },
-        },
-      });
-
-      this.logger.log('Initial consultation tickets seeded successfully.');
-    }
-  }
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mailService: MailService,
+  ) {}
 
   private gateway?: any;
+
 
   setGateway(gw: any) {
     this.gateway = gw;
@@ -223,9 +135,26 @@ export class ConsultationsService implements OnModuleInit {
    * 3. Create a new consultation ticket with initial farmer inquiry message
    */
   async create(dto: CreateConsultationDto) {
-    // Generate unique sequential or random ticket number
-    const count = await this.prisma.consultationTicket.count();
-    const ticketNumber = `TK-${(2040 + count + 1).toString()}`;
+    // Generate unique sequential ticket number without collisions
+    const tickets = await this.prisma.consultationTicket.findMany({
+      select: { ticketNumber: true },
+    });
+    let maxNum = 2040;
+    for (const t of tickets) {
+      const match = t.ticketNumber?.match(/\d+/);
+      if (match) {
+        const val = parseInt(match[0], 10);
+        if (!isNaN(val) && val > maxNum) {
+          maxNum = val;
+        }
+      }
+    }
+    let nextNum = maxNum + 1;
+    let ticketNumber = `TK-${nextNum}`;
+    while (await this.prisma.consultationTicket.findUnique({ where: { ticketNumber }, select: { id: true } })) {
+      nextNum++;
+      ticketNumber = `TK-${nextNum}`;
+    }
 
     // Look for an active expert in DB to assign
     const expert = await this.prisma.user.findFirst({
@@ -236,6 +165,7 @@ export class ConsultationsService implements OnModuleInit {
     const ticket = await this.prisma.consultationTicket.create({
       data: {
         ticketNumber,
+        userId: dto.userId?.trim() || null,
         subject: dto.subject.trim(),
         category: dto.category.trim(),
         crop: dto.crop?.trim() || null,
@@ -281,6 +211,12 @@ export class ConsultationsService implements OnModuleInit {
       throw new NotFoundException(`Consultation ticket with ID "${ticketId}" was not found`);
     }
 
+    if (existing.status === 'Resolved') {
+      throw new BadRequestException(
+        'This consultation ticket is marked as Resolved. No further messages can be sent. Please create a new consultation ticket.',
+      );
+    }
+
     const message = await this.prisma.consultationMessage.create({
       data: {
         ticketId,
@@ -293,11 +229,12 @@ export class ConsultationsService implements OnModuleInit {
       },
     });
 
-    // Update ticket status
+    // Update ticket status:
+    // - Initial status is 'Waiting for Reply'
+    // - When expert answers / replies -> status becomes 'Open' (or 'Resolved' if markResolved)
+    // - Once status is 'Open', it STAYS 'Open'. User replies will NOT flip it back to 'Waiting for Reply'!
     let nextStatus = existing.status;
-    if (dto.sender === 'user') {
-      nextStatus = 'Waiting for Reply';
-    } else if (dto.sender === 'expert') {
+    if (dto.sender === 'expert') {
       nextStatus = dto.markResolved ? 'Resolved' : 'Open';
     }
 
@@ -313,6 +250,11 @@ export class ConsultationsService implements OnModuleInit {
         },
       },
     });
+
+    // If ticket was marked Resolved, send Thank You email to user
+    if (nextStatus === 'Resolved' && existing.status !== 'Resolved') {
+      this.sendResolvedEmailSafe(existing, dto.text);
+    }
 
     const result = {
       message: {
@@ -358,13 +300,105 @@ export class ConsultationsService implements OnModuleInit {
       },
     });
 
+    // If status became Resolved, send Thank You email to user
+    if (dto.status === 'Resolved' && existing.status !== 'Resolved') {
+      this.sendResolvedEmailSafe(existing, null);
+    }
+
     const mapped = this.mapTicketToResponse(updated);
     this.notifyStatusChanged(ticketId, dto.status, mapped);
     return mapped;
   }
 
   /**
-   * 6. Rate resolved consultation
+   * 6. Mark ticket as seen by expert:
+   * When expert opens a ticket with 'Waiting for Reply', it transitions to 'Open'.
+   * If already 'Open' or 'Resolved', it remains untouched to prevent redundant status toggles.
+   */
+  async markAsSeen(ticketId: string) {
+    try {
+      const existing = await this.prisma.consultationTicket.findUnique({
+        where: { id: ticketId },
+        include: {
+          messages: {
+            orderBy: { createdAt: 'asc' },
+          },
+        },
+      });
+
+      if (!existing) {
+        return null;
+      }
+
+      if (existing.status === 'Waiting for Reply') {
+        const updated = await this.prisma.consultationTicket.update({
+          where: { id: ticketId },
+          data: {
+            status: 'Open',
+          },
+          include: {
+            messages: {
+              orderBy: { createdAt: 'asc' },
+            },
+          },
+        });
+
+        const mapped = this.mapTicketToResponse(updated);
+        this.notifyStatusChanged(ticketId, 'Open', mapped);
+        return mapped;
+      }
+
+      return this.mapTicketToResponse(existing);
+    } catch (err: any) {
+      if (err?.code === 'P2025') {
+        this.logger.warn(`Consultation ticket ${ticketId} was already removed or does not exist`);
+        return null;
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * 7. Delete consultation ticket (used by expert desk or farmer history)
+   */
+  async delete(ticketId: string) {
+    try {
+      const existing = await this.prisma.consultationTicket.findUnique({
+        where: { id: ticketId },
+      });
+
+      if (!existing) {
+        return {
+          success: true,
+          message: `Consultation ticket already deleted or not found`,
+        };
+      }
+
+      await this.prisma.consultationTicket.delete({
+        where: { id: ticketId },
+      });
+
+      if (this.gateway?.server) {
+        this.gateway.server.emit('ticket_deleted', { ticketId });
+      }
+
+      return {
+        success: true,
+        message: `Consultation ticket #${existing.ticketNumber} deleted successfully`,
+      };
+    } catch (err: any) {
+      if (err?.code === 'P2025') {
+        return {
+          success: true,
+          message: `Consultation ticket already removed`,
+        };
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * 8. Rate resolved consultation
    */
   async rate(ticketId: string, dto: RateConsultationDto) {
     const existing = await this.prisma.consultationTicket.findUnique({
@@ -392,5 +426,38 @@ export class ConsultationsService implements OnModuleInit {
     const mapped = this.mapTicketToResponse(updated);
     this.notifyTicketCreatedOrUpdated(mapped);
     return mapped;
+  }
+
+  /**
+   * Internal helper to safely send Thank You / Resolution email to user
+   */
+  private async sendResolvedEmailSafe(ticket: any, adviceText?: string | null) {
+    try {
+      let email = ticket.farmerEmail;
+      if (!email && ticket.userId) {
+        const user = await this.prisma.user.findUnique({
+          where: { id: ticket.userId },
+          select: { email: true },
+        });
+        email = user?.email;
+      }
+
+      if (!email) {
+        this.logger.warn(`Cannot send resolved email for ticket #${ticket.ticketNumber}: no recipient email available`);
+        return;
+      }
+
+      await this.mailService.sendConsultationResolvedEmail(
+        email,
+        ticket.farmerName || 'Valued Farmer',
+        ticket.ticketNumber,
+        ticket.subject,
+        ticket.assignedExpertName || 'Agricultural Specialist',
+        ticket.crop || undefined,
+        adviceText || undefined,
+      );
+    } catch (err) {
+      this.logger.error(`Error sending consultation resolution email for ticket #${ticket.ticketNumber}:`, err);
+    }
   }
 }

@@ -18,6 +18,15 @@ enum VendorStatus {
   SUSPENDED
 }
 
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
 enum ProductStatus {
   ACTIVE
   SUSPENDED

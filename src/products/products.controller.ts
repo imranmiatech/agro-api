@@ -142,6 +142,30 @@ export class ProductsController {
     }
   }
 
+  @Get('latest')
+  @ResponseMessage('Latest collection products retrieved successfully')
+  @ApiOperation({
+    summary: 'Get Latest Collection Products (Public)',
+    description:
+      'Retrieves latest active products added by vendors / platform for the customer homepage.',
+  })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 6 })
+  async getLatestProducts(@Query('limit') limit?: number) {
+    return this.productsService.findLatestProducts(limit);
+  }
+
+  @Get('vendors/search')
+  @ResponseMessage('Vendors list retrieved successfully')
+  @ApiOperation({
+    summary: 'Search Vendors for Admin Product Creation Autocomplete',
+    description:
+      'Retrieves approved vendors matching search query for the Admin product creation dropdown.',
+  })
+  @ApiQuery({ name: 'q', required: false, type: String })
+  async searchVendors(@Query('q') query?: string) {
+    return this.productsService.searchVendorsForAdmin(query);
+  }
+
   @Get(':id')
   @ResponseMessage('Product retrieved successfully')
   @ApiOperation({

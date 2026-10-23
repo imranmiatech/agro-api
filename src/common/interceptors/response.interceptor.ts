@@ -52,6 +52,15 @@ export class ResponseInterceptor<T>
 
     return next.handle().pipe(
       map((resData) => {
+        // Bypass JSON envelop for Buffer, binary streams, and PDF responses
+        if (
+          Buffer.isBuffer(resData) ||
+          response.getHeader('content-type')?.toString().includes('application/pdf') ||
+          response.getHeader('content-type')?.toString().includes('octet-stream')
+        ) {
+          return resData;
+        }
+
         // If the handler already returned an object structured with data/message
         if (
           resData &&

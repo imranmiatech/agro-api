@@ -55,6 +55,7 @@ model VendorProfile {
   // Products & Transactions
   products        Product[]
   transactions    Transaction[]
+  orderItems      OrderItem[]
   stripeAccountId String?
 
   // Admin Moderation

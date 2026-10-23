@@ -64,6 +64,17 @@ export class CreateProductDto {
   compareAtPrice?: number;
 
   @ApiPropertyOptional({
+    example: 60.0,
+    default: 0,
+    description: 'Delivery / shipping charge in BDT (0 for free delivery)',
+  })
+  @IsOptional()
+  @Transform(({ value }) => (value !== undefined && value !== '' ? Number(value) : 0))
+  @IsNumber()
+  @Min(0)
+  deliveryCharge?: number = 0;
+
+  @ApiPropertyOptional({
     example: 130,
     default: 0,
     description: 'Available stock count in inventory',

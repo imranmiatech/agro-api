@@ -15,6 +15,7 @@ import { ExpertsModule } from './experts/experts.module.js';
 import { ConsultationsModule } from './consultations/consultations.module.js';
 import { SoilTestsModule } from './soil-tests/soil-tests.module.js';
 import { ContactModule } from './contact/contact.module.js';
+import { OrdersModule } from './orders/orders.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -33,6 +34,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     ConsultationsModule,
     SoilTestsModule,
     ContactModule,
+    OrdersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -6,6 +6,7 @@ model Product {
   category       String
   price          Float
   compareAtPrice Float?
+  deliveryCharge Float         @default(0)
   stock          Int           @default(0)
   status         ProductStatus @default(ACTIVE)
 
@@ -25,6 +26,8 @@ model Product {
 
   createdById    String
   createdBy      User          @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  orderItems     OrderItem[]
 
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt

@@ -7,6 +7,11 @@ export class CreateConsultationDto {
   @IsNotEmpty()
   subject: string;
 
+  @ApiPropertyOptional({ example: 'user-uuid-1234' })
+  @IsOptional()
+  @IsString()
+  userId?: string;
+
   @ApiProperty({ example: 'Crop Disease' })
   @IsString()
   @IsNotEmpty()

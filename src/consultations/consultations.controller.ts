@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -100,7 +101,35 @@ export class ConsultationsController {
   }
 
   /**
-   * 6. POST /consultations/:id/rate - Rate a resolved consultation
+   * 6. PATCH /consultations/:id/seen - Mark ticket as seen by expert
+   */
+  @Patch(':id/seen')
+  @ResponseMessage('Consultation marked as seen successfully')
+  @ApiOperation({
+    summary: 'Mark consultation ticket as seen',
+    description: 'When expert opens ticket, status changes from Waiting for Reply to Open. Does not toggle repeatedly.',
+  })
+  @ApiParam({ name: 'id', description: 'Consultation Ticket UUID' })
+  async markAsSeen(@Param('id') id: string) {
+    return this.consultationsService.markAsSeen(id);
+  }
+
+  /**
+   * 7. DELETE /consultations/:id - Delete consultation ticket
+   */
+  @Delete(':id')
+  @ResponseMessage('Consultation ticket deleted successfully')
+  @ApiOperation({
+    summary: 'Delete consultation ticket',
+    description: 'Expert or user deletes a consultation ticket and all its messages.',
+  })
+  @ApiParam({ name: 'id', description: 'Consultation Ticket UUID' })
+  async delete(@Param('id') id: string) {
+    return this.consultationsService.delete(id);
+  }
+
+  /**
+   * 8. POST /consultations/:id/rate - Rate a resolved consultation
    */
   @Post(':id/rate')
   @ResponseMessage('Consultation rated successfully')
@@ -116,3 +145,4 @@ export class ConsultationsController {
     return this.consultationsService.rate(id, dto);
   }
 }
+

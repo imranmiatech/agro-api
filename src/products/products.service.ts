@@ -77,6 +77,7 @@ export class ProductsService {
         category: dto.category.trim(),
         price: Number(dto.price),
         compareAtPrice: dto.compareAtPrice !== undefined ? Number(dto.compareAtPrice) : null,
+        deliveryCharge: dto.deliveryCharge !== undefined ? Number(dto.deliveryCharge) : 0,
         stock: dto.stock !== undefined ? Number(dto.stock) : 0,
         status: dto.status || ProductStatus.ACTIVE,
         summary: dto.summary?.trim() || null,
@@ -557,6 +558,8 @@ export class ProductsService {
         price: dto.price !== undefined ? Number(dto.price) : undefined,
         compareAtPrice:
           dto.compareAtPrice !== undefined ? Number(dto.compareAtPrice) : undefined,
+        deliveryCharge:
+          dto.deliveryCharge !== undefined ? Number(dto.deliveryCharge) : undefined,
         stock: dto.stock !== undefined ? Number(dto.stock) : undefined,
         status: dto.status !== undefined ? dto.status : undefined,
         summary: dto.summary !== undefined ? dto.summary.trim() : undefined,
@@ -776,5 +779,70 @@ export class ProductsService {
     }
 
     throw new ForbiddenException('Only Admins and Vendors can create products');
+  }
+
+  /**
+   * 7. Get Latest Collection products for customer homepage.
+   * Retrieves products ordered by latest creation date.
+   */
+  async findLatestProducts(limit = 6) {
+    const take = Math.max(1, Math.min(24, Number(limit) || 6));
+    const products = await this.prisma.product.findMany({
+      where: {
+        status: ProductStatus.ACTIVE,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take,
+      include: {
+        vendor: {
+          select: {
+            id: true,
+            businessName: true,
+            logo: true,
+            category: true,
+            city: true,
+          },
+        },
+      },
+    });
+
+    return products;
+  }
+
+  /**
+   * 8. Search / List Vendors for Admin Product Creation Autocomplete
+   */
+  async searchVendorsForAdmin(search = '') {
+    const query = (search || '').trim();
+    const where: any = {};
+
+    if (query) {
+      where.OR = [
+        { businessName: { contains: query, mode: 'insensitive' } },
+        { contactPerson: { contains: query, mode: 'insensitive' } },
+        { businessEmail: { contains: query, mode: 'insensitive' } },
+        { id: { contains: query, mode: 'insensitive' } },
+      ];
+    }
+
+    const vendors = await this.prisma.vendorProfile.findMany({
+      where,
+      select: {
+        id: true,
+        businessName: true,
+        logo: true,
+        contactPerson: true,
+        businessEmail: true,
+        category: true,
+        city: true,
+        status: true,
+      },
+      take: 25,
+      orderBy: { businessName: 'asc' },
+    });
+
+    return vendors;
   }
 }

@@ -1,0 +1,69 @@
+model Order {
+  id                   String        @id @default(uuid())
+  orderNumber          String        @unique
+  userId               String?
+  customerName         String
+  customerEmail        String
+  customerPhone        String
+  deliveryAddress      String        @db.Text
+  district             String
+  upazila              String?
+  city                 String?
+  postalCode           String?
+  notes                String?       @db.Text
+
+  subtotal             Float
+  deliveryFee          Float         @default(0)
+  discount             Float         @default(0)
+  total                Float
+
+  paymentMethod        String        @default("Cash on Delivery")
+  paymentStatus        PaymentStatus @default(PENDING)
+  status               OrderStatus   @default(PENDING)
+
+  transactionId        String?
+  stripePaymentIntentId String?
+  courierName          String?
+  trackingNumber       String?
+  estimatedDelivery    String?
+  trackingMilestones   Json?
+
+  items                OrderItem[]
+
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  @@index([customerEmail])
+  @@index([customerPhone])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id             String         @id @default(uuid())
+  orderId        String
+  order          Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId      String?
+  product        Product?       @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  vendorId       String?
+  vendor         VendorProfile? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+
+  productName    String
+  productImage   String
+  category       String?
+  sku            String?
+  price          Float
+  quantity       Int            @default(1)
+  deliveryCharge Float          @default(0)
+
+  createdAt      DateTime       @default(now())
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([vendorId])
+  @@map("order_items")
+}

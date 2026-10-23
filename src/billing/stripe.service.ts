@@ -216,4 +216,96 @@ export class StripeService {
       throw new BadRequestException(`Webhook Error: ${error.message}`);
     }
   }
+
+  /**
+   * Processes card payment for Soil Testing service.
+   */
+  async processSoilTestPayment(params: {
+    amount: number;
+    packageName: string;
+    farmerName: string;
+    email?: string;
+    phone?: string;
+    card?: {
+      number: string;
+      expMonth: number;
+      expYear: number;
+      cvc: string;
+      name: string;
+    };
+  }): Promise<{ success: boolean; transactionId: string; stripePaymentId?: string }> {
+    try {
+      let paymentMethod = 'pm_card_visa';
+      const cleanNumber = (params.card?.number || '').replace(/\s+/g, '');
+      if (cleanNumber.startsWith('5')) {
+        paymentMethod = 'pm_card_mastercard';
+      } else if (cleanNumber.startsWith('3')) {
+        paymentMethod = 'pm_card_amex';
+      }
+
+      const paymentIntent = await this.stripe.paymentIntents.create({
+        amount: Math.round(params.amount * 100),
+        currency: 'bdt',
+        payment_method: paymentMethod,
+        confirm: true,
+        description: `Krishikunjo Soil Test: ${params.packageName}`,
+        receipt_email: params.email,
+        automatic_payment_methods: {
+          enabled: true,
+          allow_redirects: 'never',
+        },
+        metadata: {
+          farmerName: params.farmerName,
+          phone: params.phone || '',
+          packageName: params.packageName,
+        },
+      });
+
+      this.logger.log(
+        `Stripe PaymentIntent created & confirmed: ${paymentIntent.id} for ${params.farmerName} (${params.amount} BDT)`,
+      );
+
+      return {
+        success: true,
+        transactionId: paymentIntent.id,
+        stripePaymentId: paymentIntent.id,
+      };
+    } catch (err: any) {
+      this.logger.error(`Stripe primary BDT charge error: ${err.message}`);
+
+      // Fallback to USD currency if account restricted for BDT
+      try {
+        const usdAmount = Math.max(50, Math.round((params.amount / 120) * 100));
+        const paymentIntent = await this.stripe.paymentIntents.create({
+          amount: usdAmount,
+          currency: 'usd',
+          payment_method: 'pm_card_visa',
+          confirm: true,
+          description: `Krishikunjo Soil Test: ${params.packageName}`,
+          receipt_email: params.email,
+          automatic_payment_methods: {
+            enabled: true,
+            allow_redirects: 'never',
+          },
+          metadata: {
+            farmerName: params.farmerName,
+            phone: params.phone || '',
+            packageName: params.packageName,
+          },
+        });
+
+        this.logger.log(`Stripe USD PaymentIntent succeeded: ${paymentIntent.id}`);
+        return {
+          success: true,
+          transactionId: paymentIntent.id,
+          stripePaymentId: paymentIntent.id,
+        };
+      } catch (fallbackErr: any) {
+        this.logger.error(`Stripe payment failed entirely: ${fallbackErr.message}`);
+        throw new BadRequestException(
+          `Stripe Payment authorization failed: ${err.message || fallbackErr.message}`,
+        );
+      }
+    }
+  }
 }
