@@ -29,6 +29,7 @@ model Order {
   trackingMilestones   Json?
 
   items                OrderItem[]
+  messages             OrderMessage[]
 
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt

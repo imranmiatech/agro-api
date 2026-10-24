@@ -1,0 +1,18 @@
+model OrderMessage {
+  id         String   @id @default(uuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  sender     String   // "customer" | "vendor"
+  senderName String?
+  text       String   @db.Text
+  attachment Json?    // { name: string, type: "image"|"file", dataUrl: string, size?: string }
+  isRead     Boolean  @default(false)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([createdAt])
+  @@map("order_messages")
+}

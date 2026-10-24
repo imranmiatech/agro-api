@@ -30,17 +30,26 @@ export class ResponseInterceptor<T>
   intercept(
     context: ExecutionContext,
     next: CallHandler,
-  ): Observable<StandardApiResponse<T>> {
+  ): Observable<any> {
+    // For non-HTTP contexts (e.g. WebSockets, RPC), bypass the HTTP response envelope
+    if (context.getType() !== 'http') {
+      return next.handle();
+    }
+
     const http = context.switchToHttp();
     const request = http.getRequest();
     const response = http.getResponse();
+
+    if (!response) {
+      return next.handle();
+    }
 
     // Skip Swagger documentation UI and JSON endpoints
     if (request?.url?.includes('/api/docs')) {
       return next.handle();
     }
 
-    const statusCode = response.statusCode;
+    const statusCode = response.statusCode ?? 200;
 
     // Retrieve custom message set by @ResponseMessage() decorator, or default
     const customMessage = this.reflector.get<string>(
@@ -53,10 +62,15 @@ export class ResponseInterceptor<T>
     return next.handle().pipe(
       map((resData) => {
         // Bypass JSON envelop for Buffer, binary streams, and PDF responses
+        const contentType =
+          typeof response.getHeader === 'function'
+            ? response.getHeader('content-type')?.toString() || ''
+            : '';
+
         if (
           Buffer.isBuffer(resData) ||
-          response.getHeader('content-type')?.toString().includes('application/pdf') ||
-          response.getHeader('content-type')?.toString().includes('octet-stream')
+          contentType.includes('application/pdf') ||
+          contentType.includes('octet-stream')
         ) {
           return resData;
         }

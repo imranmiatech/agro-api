@@ -21,6 +21,21 @@ export class OrdersService {
   ) {}
 
   /**
+   * Unifies and maps database OrderStatus enum to the 5 canonical order statuses:
+   * 'New' | 'Processing' | 'Delivery Sent' | 'Completed' | 'Cancelled'
+   */
+  public toCanonicalStatus(
+    status: any,
+  ): 'New' | 'Processing' | 'Delivery Sent' | 'Completed' | 'Cancelled' {
+    const s = String(status || '').trim().toUpperCase().replace(/[\s-]+/g, '_');
+    if (s === 'PROCESSING' || s === 'CONFIRMED') return 'Processing';
+    if (s === 'DELIVERY_SENT' || s === 'IN_TRANSIT' || s === 'SHIPPED') return 'Delivery Sent';
+    if (s === 'COMPLETED' || s === 'DELIVERED') return 'Completed';
+    if (s === 'CANCELLED' || s === 'CANCELED') return 'Cancelled';
+    return 'New'; // PENDING or default
+  }
+
+  /**
    * Helper to format order for API response matching client expectations
    */
   private formatOrder(order: any) {
@@ -50,7 +65,8 @@ export class OrdersService {
       notes: order.notes,
       paymentMethod: order.paymentMethod,
       paymentStatus: order.paymentStatus === 'SUCCEEDED' ? 'Paid' : 'Pending Payment',
-      status: (order.status || 'PENDING').toLowerCase(),
+      status: this.toCanonicalStatus(order.status),
+      rawStatus: order.status,
       subtotal: order.subtotal,
       deliveryFee: order.deliveryFee,
       discount: order.discount,
@@ -244,6 +260,36 @@ export class OrdersService {
   }
 
   /**
+   * Helper to normalize flexible status strings to Prisma OrderStatus
+   */
+  private normalizeStatus(status?: string): OrderStatus | undefined {
+    if (!status) return undefined;
+    const s = status.trim().toUpperCase().replace(/[\s-]+/g, '_');
+    if (s === 'ALL') return undefined;
+    if (s === 'NEW' || s === 'PENDING') return OrderStatus.PENDING;
+    if (s === 'CONFIRMED' || s === 'PROCESSING') return OrderStatus.PROCESSING;
+    if (s === 'DELIVERY_SENT' || s === 'IN_TRANSIT' || s === 'SHIPPED') return OrderStatus.SHIPPED;
+    if (s === 'COMPLETED' || s === 'DELIVERED') return OrderStatus.DELIVERED;
+    if (s === 'CANCELLED' || s === 'CANCELED') return OrderStatus.CANCELLED;
+    if (Object.values(OrderStatus).includes(s as OrderStatus)) return s as OrderStatus;
+    return undefined;
+  }
+
+  /**
+   * Helper to normalize payment status strings to Prisma PaymentStatus
+   */
+  private normalizePaymentStatus(status?: string): PaymentStatus | undefined {
+    if (!status) return undefined;
+    const s = status.trim().toUpperCase().replace(/[\s-]+/g, '_');
+    if (s === 'ALL') return undefined;
+    if (s === 'PAID' || s === 'SUCCEEDED' || s === 'SUCCESS') return PaymentStatus.SUCCEEDED;
+    if (s === 'PENDING' || s === 'PENDING_PAYMENT') return PaymentStatus.PENDING;
+    if (s === 'FAILED') return PaymentStatus.FAILED;
+    if (Object.values(PaymentStatus).includes(s as PaymentStatus)) return s as PaymentStatus;
+    return undefined;
+  }
+
+  /**
    * 2. Find all orders with optional search & filters
    */
   async findAll(query: QueryOrderDto) {
@@ -257,10 +303,14 @@ export class OrdersService {
       where.customerPhone = { contains: query.phone.trim() };
     }
 
-    if (query.status) {
-      const s = String(query.status).toUpperCase();
-      if (Object.values(OrderStatus).includes(s as OrderStatus)) {
-        where.status = s as OrderStatus;
+    if (query.status && query.status.trim() !== 'All') {
+      const normalized = this.normalizeStatus(query.status);
+      if (normalized) {
+        if (normalized === OrderStatus.PROCESSING) {
+          where.status = { in: [OrderStatus.PROCESSING, OrderStatus.CONFIRMED] };
+        } else {
+          where.status = normalized;
+        }
       }
     }
 
@@ -272,8 +322,11 @@ export class OrdersService {
       };
     }
 
-    if (query.paymentStatus) {
-      where.paymentStatus = query.paymentStatus;
+    if (query.paymentStatus && query.paymentStatus.trim() !== 'All') {
+      const normalizedPay = this.normalizePaymentStatus(query.paymentStatus);
+      if (normalizedPay) {
+        where.paymentStatus = normalizedPay;
+      }
     }
 
     if (query.search?.trim()) {
@@ -283,6 +336,13 @@ export class OrdersService {
         { customerName: { contains: q, mode: 'insensitive' } },
         { customerEmail: { contains: q, mode: 'insensitive' } },
         { customerPhone: { contains: q } },
+        {
+          items: {
+            some: {
+              productName: { contains: q, mode: 'insensitive' },
+            },
+          },
+        },
       ];
     }
 
@@ -313,9 +373,10 @@ export class OrdersService {
    * 3. Find single order by ID or orderNumber
    */
   async findOne(idOrNumber: string) {
+    const trimmed = idOrNumber?.trim();
     const order = await this.prisma.order.findFirst({
       where: {
-        OR: [{ id: idOrNumber }, { orderNumber: idOrNumber }],
+        OR: [{ id: trimmed }, { orderNumber: trimmed }],
       },
       include: { items: true },
     });
@@ -331,9 +392,10 @@ export class OrdersService {
    * 4. Update order status & delivery details
    */
   async updateStatus(idOrNumber: string, dto: UpdateOrderStatusDto) {
+    const trimmed = idOrNumber?.trim();
     const existing = await this.prisma.order.findFirst({
       where: {
-        OR: [{ id: idOrNumber }, { orderNumber: idOrNumber }],
+        OR: [{ id: trimmed }, { orderNumber: trimmed }],
       },
     });
 
@@ -341,67 +403,78 @@ export class OrdersService {
       throw new NotFoundException(`Order ${idOrNumber} not found`);
     }
 
-    let nextStatus: OrderStatus | undefined = undefined;
-    if (dto.status) {
-      const s = String(dto.status).toUpperCase();
-      if (Object.values(OrderStatus).includes(s as OrderStatus)) {
-        nextStatus = s as OrderStatus;
-      }
+    const nextStatus = this.normalizeStatus(dto.status);
+    const nextPaymentStatus = this.normalizePaymentStatus(dto.paymentStatus);
+
+    const dataToUpdate: any = {};
+    if (nextStatus !== undefined) {
+      dataToUpdate.status = nextStatus;
     }
 
-    // Update milestones dynamically
-    let updatedMilestones: any = existing.trackingMilestones;
-    if (nextStatus && Array.isArray(updatedMilestones)) {
-      const statusLower = nextStatus.toLowerCase();
-      updatedMilestones = updatedMilestones.map((m: any) => {
-        const titleLower = (m.title || '').toLowerCase();
-        if (statusLower === 'processing' && (titleLower.includes('pack') || titleLower.includes('process'))) {
-          return { ...m, completed: true, current: true, timestamp: 'In progress' };
-        }
-        if (statusLower === 'shipped' && (titleLower.includes('transit') || titleLower.includes('courier'))) {
-          return { ...m, completed: true, current: true, timestamp: 'Dispatched' };
-        }
-        if (statusLower === 'delivered' && (titleLower.includes('delivery') || titleLower.includes('farmgate'))) {
-          return { ...m, completed: true, current: true, timestamp: 'Delivered' };
-        }
-        return m;
-      });
+    if (nextPaymentStatus !== undefined) {
+      dataToUpdate.paymentStatus = nextPaymentStatus;
+    } else if (nextStatus === OrderStatus.DELIVERED && existing.paymentMethod === 'Cash on Delivery') {
+      dataToUpdate.paymentStatus = PaymentStatus.SUCCEEDED;
     }
+
+    if (dto.courierName !== undefined) dataToUpdate.courierName = dto.courierName?.trim() || null;
+    if (dto.trackingNumber !== undefined) dataToUpdate.trackingNumber = dto.trackingNumber?.trim() || null;
+    if (dto.estimatedDelivery !== undefined) dataToUpdate.estimatedDelivery = dto.estimatedDelivery?.trim() || null;
 
     const updated = await this.prisma.order.update({
       where: { id: existing.id },
-      data: {
-        status: nextStatus !== undefined ? nextStatus : undefined,
-        trackingMilestones: updatedMilestones !== undefined ? updatedMilestones : undefined,
-        paymentStatus: dto.paymentStatus !== undefined ? dto.paymentStatus : undefined,
-        courierName: dto.courierName?.trim() || undefined,
-        trackingNumber: dto.trackingNumber?.trim() || undefined,
-        estimatedDelivery: dto.estimatedDelivery?.trim() || undefined,
-      },
-      include: { items: true },
+      data: dataToUpdate,
     });
 
-    return this.formatOrder(updated);
+    const canonicalStatus = this.toCanonicalStatus(updated.status);
+
+    this.logger.log(`Order #${existing.orderNumber} status updated to ${canonicalStatus}`);
+
+    return {
+      id: updated.id,
+      orderNumber: updated.orderNumber,
+      status: canonicalStatus,
+      rawStatus: updated.status,
+      paymentStatus: updated.paymentStatus === 'SUCCEEDED' ? 'Paid' : 'Pending Payment',
+      message: 'Order status updated successfully',
+    };
   }
 
   /**
    * 5. Delete an order
    */
   async remove(idOrNumber: string) {
+    const trimmed = idOrNumber?.trim();
     const existing = await this.prisma.order.findFirst({
       where: {
-        OR: [{ id: idOrNumber }, { orderNumber: idOrNumber }],
+        OR: [{ id: trimmed }, { orderNumber: trimmed }],
       },
+      include: { items: true },
     });
 
     if (!existing) {
       throw new NotFoundException(`Order ${idOrNumber} not found`);
     }
 
-    await this.prisma.order.delete({
-      where: { id: existing.id },
+    await this.prisma.$transaction(async (tx) => {
+      // Disassociate transaction if exists
+      await tx.transaction
+        .updateMany({
+          where: { orderId: existing.id },
+          data: { orderId: null },
+        })
+        .catch(() => {});
+
+      await tx.orderItem.deleteMany({
+        where: { orderId: existing.id },
+      });
+
+      await tx.order.delete({
+        where: { id: existing.id },
+      });
     });
 
+    this.logger.log(`Order #${existing.orderNumber} deleted successfully`);
     return { success: true, message: `Order #${existing.orderNumber} deleted successfully` };
   }
 }

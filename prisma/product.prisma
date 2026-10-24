@@ -28,6 +28,7 @@ model Product {
   createdBy      User          @relation(fields: [createdById], references: [id], onDelete: Cascade)
 
   orderItems     OrderItem[]
+  reviews        ProductReview[]
 
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt

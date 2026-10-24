@@ -13,15 +13,15 @@ export class QueryOrderDto {
   @IsString()
   phone?: string;
 
-  @ApiPropertyOptional({ description: 'Filter by order status', enum: OrderStatus })
+  @ApiPropertyOptional({ description: 'Filter by order status (e.g. New, Processing, Delivery Sent, Completed, Cancelled)' })
   @IsOptional()
-  @IsEnum(OrderStatus)
-  status?: OrderStatus;
+  @IsString()
+  status?: string;
 
-  @ApiPropertyOptional({ description: 'Filter by payment status', enum: PaymentStatus })
+  @ApiPropertyOptional({ description: 'Filter by payment status (e.g. Paid, Pending)' })
   @IsOptional()
-  @IsEnum(PaymentStatus)
-  paymentStatus?: PaymentStatus;
+  @IsString()
+  paymentStatus?: string;
 
   @ApiPropertyOptional({ description: 'Filter orders by vendor ID' })
   @IsOptional()

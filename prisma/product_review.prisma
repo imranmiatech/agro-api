@@ -1,0 +1,22 @@
+model ProductReview {
+  id            String   @id @default(uuid())
+  orderId       String?
+  productId     String
+  product       Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  userId        String?
+  customerName  String
+  customerEmail String?
+  rating        Int      @default(5)
+  comment       String?  @db.Text
+  productName   String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([productId])
+  @@index([orderId])
+  @@index([rating])
+  @@index([createdAt])
+  @@map("product_reviews")
+}

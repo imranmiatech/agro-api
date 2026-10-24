@@ -1,17 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { OrderStatus, PaymentStatus } from '../../generated/prisma/enums.js';
-
 export class UpdateOrderStatusDto {
-  @ApiPropertyOptional({ enum: OrderStatus })
+  @ApiPropertyOptional({ description: 'Order Status (e.g. PROCESSING, SHIPPED, DELIVERED, CANCELLED, New, Delivery Sent)' })
   @IsOptional()
-  @IsEnum(OrderStatus)
-  status?: OrderStatus;
+  @IsString()
+  status?: string;
 
-  @ApiPropertyOptional({ enum: PaymentStatus })
+  @ApiPropertyOptional({ description: 'Payment Status (e.g. SUCCEEDED, PENDING, FAILED, Paid)' })
   @IsOptional()
-  @IsEnum(PaymentStatus)
-  paymentStatus?: PaymentStatus;
+  @IsString()
+  paymentStatus?: string;
 
   @ApiPropertyOptional({ example: 'Pathao Courier' })
   @IsOptional()
