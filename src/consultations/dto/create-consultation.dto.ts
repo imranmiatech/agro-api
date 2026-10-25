@@ -1,5 +1,6 @@
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsInt, IsNotEmpty, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class CreateConsultationDto {
   @ApiProperty({ example: 'Yellow mosaic patches on Boro paddy leaves' })
@@ -98,6 +99,10 @@ export class UpdateConsultationStatusDto {
 
 export class RateConsultationDto {
   @ApiProperty({ example: 5, minimum: 1, maximum: 5 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(5)
   stars: number;
 
   @ApiPropertyOptional({ example: 'Excellent and swift advice!' })

@@ -45,3 +45,15 @@ model Transaction {
   @@index([payoutStatus])
   @@map("transactions")
 }
+
+model PlatformSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@map("platform_settings")
+}
+

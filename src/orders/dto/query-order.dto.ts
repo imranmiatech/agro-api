@@ -40,4 +40,12 @@ export class QueryOrderDto {
   @ApiPropertyOptional({ description: 'Items per page', default: 20 })
   @IsOptional()
   limit?: number = 20;
+
+  @ApiPropertyOptional({ description: 'Filter deleted orders: false (active only), true (deleted only), all (all)' })
+  @IsOptional()
+  isDeleted?: string;
+
+  @ApiPropertyOptional({ description: 'Include soft-deleted orders in list' })
+  @IsOptional()
+  includeDeleted?: string;
 }

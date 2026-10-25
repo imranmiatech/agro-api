@@ -80,12 +80,12 @@ export class QueryProductDto {
 
   @ApiPropertyOptional({
     description: 'Field to sort by',
-    enum: ['createdAt', 'price', 'name', 'stock'],
+    enum: ['createdAt', 'price', 'name', 'stock', 'rating', 'reviews'],
     default: 'createdAt',
   })
   @IsOptional()
   @IsString()
-  sortBy?: 'createdAt' | 'price' | 'name' | 'stock' = 'createdAt';
+  sortBy?: 'createdAt' | 'price' | 'name' | 'stock' | 'rating' | 'reviews' = 'createdAt';
 
   @ApiPropertyOptional({
     description: 'Sort direction',
@@ -95,4 +95,22 @@ export class QueryProductDto {
   @IsOptional()
   @IsString()
   sortOrder?: 'asc' | 'desc' = 'desc';
+
+  @ApiPropertyOptional({
+    description: 'Filter by minimum customer rating (1-5)',
+    example: 4,
+  })
+  @IsOptional()
+  @Transform(({ value }) => (value !== undefined ? Number(value) : undefined))
+  @IsNumber()
+  @Min(0)
+  minRating?: number;
+
+  @ApiPropertyOptional({
+    description: 'Filter only products with available stock',
+    example: true,
+  })
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  inStockOnly?: boolean;
 }

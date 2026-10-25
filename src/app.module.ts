@@ -8,6 +8,7 @@ import { ProfileModule } from './profile/profile.module.js';
 import { MailModule } from './mail/mail.module.js';
 import { UsersModule } from './users/users.module.js';
 import { ProductsModule } from './products/products.module.js';
+import { CategoryModule } from './category/category.module.js';
 import { BillingModule } from './billing/billing.module.js';
 import { PartnersModule } from './partners/partners.module.js';
 import { ContentModule } from './content/content.module.js';
@@ -19,6 +20,7 @@ import { OrdersModule } from './orders/orders.module.js';
 import { OrderMessagesModule } from './order-messages/order-messages.module.js';
 import { ReviewsModule } from './reviews/reviews.module.js';
 import { VendorSupportModule } from './vendor-support/vendor-support.module.js';
+import { OverviewModule } from './overview/overview.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -30,6 +32,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     ProfileModule,
     UsersModule,
     ProductsModule,
+    CategoryModule,
     BillingModule,
     PartnersModule,
     ContentModule,
@@ -41,6 +44,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     OrderMessagesModule,
     ReviewsModule,
     VendorSupportModule,
+    OverviewModule,
   ],
   controllers: [AppController],
   providers: [AppService],

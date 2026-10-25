@@ -1,23 +1,110 @@
 import {
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StripeService } from './stripe.service.js';
 import { SaveCardDto } from './dto/save-card.dto.js';
 import { CreatePaymentDto } from './dto/create-payment.dto.js';
+import { UpdateCommissionDto } from './dto/update-commission.dto.js';
 import { PaymentStatus, PayoutStatus, Role } from '../generated/prisma/enums.js';
 import type { AuthenticatedUser } from '../auth/guards/jwt-auth.guard.js';
 
 @Injectable()
-export class BillingService {
+export class BillingService implements OnModuleInit {
   private readonly logger = new Logger(BillingService.name);
+  private payoutInterval: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly stripeService: StripeService,
   ) {}
+
+  onModuleInit() {
+    // Initial check for any pending payouts that matured while the server was restarting
+    this.processPendingPayoutsCron().catch((err) =>
+      this.logger.error(`Initial pending payout sweep error: ${err.message}`),
+    );
+
+    // Periodic sweep every 60 seconds for due 10-minute vendor payouts
+    this.payoutInterval = setInterval(() => {
+      this.processPendingPayoutsCron().catch((err) =>
+        this.logger.error(`Periodic pending payout sweep error: ${err.message}`),
+      );
+    }, 60 * 1000);
+  }
+
+  /**
+   * Retrieves current platform commission percentage from database settings (default 5%)
+   */
+  async getCommissionRate(): Promise<number> {
+    try {
+      const setting = await this.prisma.platformSetting.findUnique({
+        where: { key: 'commission_percentage' },
+      });
+      if (setting && !isNaN(Number(setting.value))) {
+        return Math.max(0, Math.min(100, Number(setting.value)));
+      }
+    } catch {
+      // fallback
+    }
+    return 5.0; // default 5%
+  }
+
+  /**
+   * Retrieves commission settings details for Admin UI
+   */
+  async getCommissionSettings() {
+    const rate = await this.getCommissionRate();
+    const setting = await this.prisma.platformSetting.findUnique({
+      where: { key: 'commission_percentage' },
+    });
+    return {
+      commissionPercentage: rate,
+      payoutDelayMinutes: 10,
+      description:
+        'Platform commission fee retained by Admin on product sales. Remaining balance is automatically paid out to the vendor in 10 minutes.',
+      updatedAt: setting?.updatedAt || new Date(),
+    };
+  }
+
+  /**
+   * Updates and fixes the platform commission percentage in Admin settings
+   */
+  async updateCommissionRate(user: AuthenticatedUser, dto: UpdateCommissionDto) {
+    if (user.role !== Role.ADMIN) {
+      throw new ForbiddenException(
+        'Only platform administrators can configure commission settings',
+      );
+    }
+
+    const rate = Number(dto.commissionPercentage);
+    const updated = await this.prisma.platformSetting.upsert({
+      where: { key: 'commission_percentage' },
+      update: {
+        value: rate.toString(),
+        description: 'Admin platform commission percentage',
+      },
+      create: {
+        key: 'commission_percentage',
+        value: rate.toString(),
+        description: 'Admin platform commission percentage',
+      },
+    });
+
+    this.logger.log(`Admin ${user.email} updated platform commission rate to ${rate}%`);
+
+    return {
+      message: 'Platform commission setting updated successfully',
+      commissionPercentage: rate,
+      payoutDelayMinutes: 10,
+      updatedAt: updated.updatedAt,
+    };
+  }
+
 
   /**
    * 1. Get all saved cards for the authenticated Admin or Vendor.
@@ -213,10 +300,10 @@ export class BillingService {
   }
 
   /**
-   * 5. Process Payment with 2% Admin Commission & Scheduled 5-10min Vendor Payout.
+   * 5. Process Payment with Dynamic Admin Commission & Scheduled 10-min Vendor Payout.
    * - 100% of payment goes first to Admin's Stripe platform account.
-   * - 2% is deducted and retained as platform commission fee.
-   * - 98% is queued for automatic payout to the vendor's account in 5-10 minutes.
+   * - Configurable commission % is retained as platform fee.
+   * - Remaining vendor amount is queued for automated payout in exactly 10 minutes.
    */
   async createPaymentAndSchedulePayout(
     user: AuthenticatedUser | null,
@@ -242,9 +329,10 @@ export class BillingService {
     const amount = Number(dto.amount);
     const currency = (dto.currency || 'usd').toLowerCase();
 
-    // 2. Calculate 2% Admin Commission and 98% Vendor Payout
-    const commissionFee = Number((amount * 0.02).toFixed(2)); // 2%
-    const vendorAmount = Number((amount - commissionFee).toFixed(2)); // 98%
+    // 2. Dynamically calculate Admin Commission and Vendor Payout
+    const commissionRate = await this.getCommissionRate();
+    const commissionFee = Number(((amount * commissionRate) / 100).toFixed(2));
+    const vendorAmount = Number((amount - commissionFee).toFixed(2));
 
     // 3. Create Stripe PaymentIntent on Admin platform account
     const paymentIntent = await this.stripeService.createPaymentIntent({
@@ -258,8 +346,8 @@ export class BillingService {
       vendorId: vendorProfile.id,
     });
 
-    // 4. Schedule vendor payout for 5 minutes later (configurable between 5-10 min)
-    const payoutScheduledAt = new Date(Date.now() + 5 * 60 * 1000);
+    // 4. Schedule vendor payout for exactly 10 minutes later
+    const payoutScheduledAt = new Date(Date.now() + 10 * 60 * 1000);
 
     const transaction = await this.prisma.transaction.create({
       data: {
@@ -277,11 +365,11 @@ export class BillingService {
       },
     });
 
-    // 5. Trigger Background Automated Payout Timer (fires after 5 minutes)
-    this.scheduleVendorPayoutTimer(transaction.id, 5 * 60 * 1000);
+    // 5. Trigger Background Automated Payout Timer (fires after 10 minutes)
+    this.scheduleVendorPayoutTimer(transaction.id, 10 * 60 * 1000);
 
     this.logger.log(
-      `✅ Payment Intent ${paymentIntent.id} created: Total $${amount}. Admin 2% fee: $${commissionFee}. Vendor payout $${vendorAmount} scheduled for ${payoutScheduledAt.toISOString()}.`,
+      `✅ Payment Intent ${paymentIntent.id} created: Total $${amount}. Admin ${commissionRate}% fee: $${commissionFee}. Vendor payout $${vendorAmount} scheduled in 10 minutes (${payoutScheduledAt.toISOString()}).`,
     );
 
     return {
@@ -291,16 +379,92 @@ export class BillingService {
       totalAmount: amount,
       currency,
       commissionFee,
-      adminShare: `${commissionFee} (${currency.toUpperCase()} - 2% fee)`,
+      adminShare: `${commissionFee} (${currency.toUpperCase()} - ${commissionRate}% fee)`,
       vendorAmount,
-      vendorShare: `${vendorAmount} (${currency.toUpperCase()} - 98% payout)`,
+      vendorShare: `${vendorAmount} (${currency.toUpperCase()} - payout scheduled in 10 min)`,
       payoutScheduledAt,
       clientSecret: paymentIntent.client_secret,
     };
   }
 
   /**
-   * Helper: Schedule in-memory timer for the 5-10 minute vendor payout execution.
+   * Records an order settlement when delivery is completed or paid online.
+   * Admin receives funds; retains admin commission %; queues vendor payout for 10 minutes later.
+   */
+  async recordOrderSettlement(params: {
+    orderId: string;
+    customerEmail?: string;
+    vendorId: string;
+    totalAmount: number;
+    currency?: string;
+  }) {
+    // Prevent duplicate transaction for same order and vendor
+    const existing = await this.prisma.transaction.findFirst({
+      where: {
+        orderId: params.orderId,
+        vendorId: params.vendorId,
+      },
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    const rate = await this.getCommissionRate();
+    const commissionFee = Number(((params.totalAmount * rate) / 100).toFixed(2));
+    const vendorAmount = Number((params.totalAmount - commissionFee).toFixed(2));
+    const payoutScheduledAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    const tx = await this.prisma.transaction.create({
+      data: {
+        orderId: params.orderId,
+        customerEmail: params.customerEmail || null,
+        vendorId: params.vendorId,
+        totalAmount: params.totalAmount,
+        currency: params.currency || 'usd',
+        commissionFee,
+        vendorAmount,
+        status: PaymentStatus.SUCCEEDED,
+        payoutStatus: PayoutStatus.PENDING,
+        payoutScheduledAt,
+      },
+    });
+
+    this.scheduleVendorPayoutTimer(tx.id, 10 * 60 * 1000);
+    this.logger.log(
+      `Order #${params.orderId} settlement created: $${params.totalAmount} (Admin ${rate}% fee: $${commissionFee}, Vendor: $${vendorAmount}). Automated vendor payout scheduled in 10 minutes.`,
+    );
+
+    return tx;
+  }
+
+  /**
+   * Sweeps and executes any mature vendor payouts whose 10-minute timer has expired.
+   */
+  async processPendingPayoutsCron() {
+    const now = new Date();
+    const dueTxs = await this.prisma.transaction.findMany({
+      where: {
+        payoutStatus: PayoutStatus.PENDING,
+        payoutScheduledAt: { lte: now },
+      },
+      take: 50,
+    });
+
+    if (dueTxs.length > 0) {
+      this.logger.log(`Executing ${dueTxs.length} due 10-minute vendor payouts...`);
+      for (const tx of dueTxs) {
+        try {
+          await this.executeVendorPayout(tx.id);
+        } catch (e: any) {
+          this.logger.error(`Error processing payout for tx ${tx.id}: ${e.message}`);
+        }
+      }
+    }
+  }
+
+  /**
+   * Helper: Schedule in-memory timer for the 10-minute vendor payout execution.
    */
   private scheduleVendorPayoutTimer(transactionId: string, delayMs: number) {
     setTimeout(async () => {
@@ -311,6 +475,7 @@ export class BillingService {
       }
     }, delayMs);
   }
+
 
   /**
    * 6. Executes the Vendor Payout (transfers 98% balance to vendor).

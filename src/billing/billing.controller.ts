@@ -24,6 +24,7 @@ import {
 import { BillingService } from './billing.service.js';
 import { SaveCardDto } from './dto/save-card.dto.js';
 import { CreatePaymentDto } from './dto/create-payment.dto.js';
+import { UpdateCommissionDto } from './dto/update-commission.dto.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import type { AuthenticatedUser } from '../auth/guards/jwt-auth.guard.js';
@@ -33,6 +34,36 @@ import { ResponseMessage } from '../common/decorators/response-message.decorator
 @Controller('billing')
 export class BillingController {
   constructor(private readonly billingService: BillingService) {}
+
+  @Get('commission')
+  @ResponseMessage('Platform commission setting retrieved successfully')
+  @ApiOperation({
+    summary: 'Get Platform Commission Percentage & Payout Settings',
+    description: 'Retrieves current Admin commission percentage and the 10-minute automated vendor payout configuration.',
+  })
+  @ApiResponse({ status: 200, description: 'Commission settings retrieved successfully' })
+  async getCommission() {
+    return this.billingService.getCommissionSettings();
+  }
+
+  @Patch('commission')
+  @ApiBearerAuth('JWT-auth')
+  @UseGuards(JwtAuthGuard)
+  @ResponseMessage('Platform commission percentage updated successfully')
+  @ApiOperation({
+    summary: 'Update Platform Commission Percentage (Admin Only)',
+    description:
+      'Configures and fixes the percentage fee retained by Admin on every product sale before the 10-minute vendor payout.',
+  })
+  @ApiBody({ type: UpdateCommissionDto })
+  @ApiResponse({ status: 200, description: 'Commission setting updated successfully' })
+  @ApiResponse({ status: 403, description: 'Only platform administrators can configure commission settings' })
+  async updateCommission(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpdateCommissionDto,
+  ) {
+    return this.billingService.updateCommissionRate(user, dto);
+  }
 
   @Get('cards')
   @ApiBearerAuth('JWT-auth')

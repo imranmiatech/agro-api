@@ -11,121 +11,6 @@ import {
   TicketStatus,
 } from './vendor-support.entity.js';
 
-const initialSeedTickets: VendorSupportTicket[] = [
-  {
-    id: 'TKT-1042',
-    vendorId: 'v-101',
-    vendorName: 'Md. Aminul Islam',
-    storeName: 'Green Agro Farm',
-    email: 'contact@greenagrofarm.com',
-    phone: '+880 1712-345678',
-    category: 'Payout & Finance',
-    priority: 'High',
-    subject: 'Bkash & Bank payout settlement delay for invoice #INV-9281',
-    fullMessage: 'We submitted our weekly sales withdrawal of 45,500 BDT 3 days ago. The status is still pending in the payout section. Could you kindly verify with the accounts team?',
-    status: 'Open',
-    submittedTime: 'Today, 10:30 AM',
-    updatedTime: '10 min ago',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    messages: [
-      {
-        id: 'msg-1',
-        author: 'Md. Aminul Islam (Green Agro Farm)',
-        authorRole: 'Vendor',
-        authorInitials: 'AI',
-        time: 'Today, 10:30 AM',
-        text: 'We submitted our weekly sales withdrawal of 45,500 BDT 3 days ago. The status is still pending in the payout section. Could you kindly verify with the accounts team?',
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: 'msg-2',
-        author: 'Krisikunjo Admin Desk',
-        authorRole: 'Admin',
-        authorInitials: 'AD',
-        time: 'Today, 10:45 AM',
-        text: 'Hello Aminul bhai, we received your withdrawal request. Due to the weekend bank batch processing, our team is verifying the transaction hash today. We will complete it by 2:00 PM.',
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: 'msg-3',
-        author: 'Md. Aminul Islam (Green Agro Farm)',
-        authorRole: 'Vendor',
-        authorInitials: 'AI',
-        time: 'Today, 11:10 AM',
-        text: 'Understood. Please let me know once the transaction is pushed.',
-        createdAt: new Date().toISOString(),
-      },
-    ],
-  },
-  {
-    id: 'TKT-1039',
-    vendorId: 'v-102',
-    vendorName: 'Motiur Rahman',
-    storeName: 'Rahman Organic Seeds',
-    email: 'support@rahmanorganic.com',
-    phone: '+880 1823-456789',
-    category: 'Product Approval',
-    priority: 'Medium',
-    subject: 'Paddy seed BRRI-28 lab certification upload and approval',
-    fullMessage: 'We added a new certified seed listing: BRRI-28 Super Premium. We uploaded the germination lab test certificate. Please approve the product for marketplace live display.',
-    status: 'Open',
-    submittedTime: 'Yesterday, 04:15 PM',
-    updatedTime: 'Yesterday',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    messages: [
-      {
-        id: 'msg-4',
-        author: 'Motiur Rahman (Rahman Organic Seeds)',
-        authorRole: 'Vendor',
-        authorInitials: 'MR',
-        time: 'Yesterday, 04:15 PM',
-        text: 'We added a new certified seed listing: BRRI-28 Super Premium. We uploaded the germination lab test certificate. Please approve the product for marketplace live display.',
-        attachmentName: 'BRRI28_seed_certification.pdf',
-        createdAt: new Date().toISOString(),
-      },
-    ],
-  },
-  {
-    id: 'TKT-1025',
-    vendorId: 'v-103',
-    vendorName: 'Sultana Ahmed',
-    storeName: 'Northern Agri Hub',
-    email: 'sultana@northernagri.com',
-    phone: '+880 1914-567890',
-    category: 'Delivery & Logistics',
-    priority: 'Low',
-    subject: 'Steadfast & Pathao courier pickup integration in Rajshahi area',
-    fullMessage: 'We would like to enable the automated dispatch pickup from our Rajshahi warehouse. Does the system support automatic tracking synchronization?',
-    status: 'Resolved',
-    submittedTime: 'Oct 20, 2026',
-    updatedTime: 'Oct 21, 2026',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    messages: [
-      {
-        id: 'msg-5',
-        author: 'Sultana Ahmed (Northern Agri Hub)',
-        authorRole: 'Vendor',
-        authorInitials: 'SA',
-        time: 'Oct 20, 2026 11:20 AM',
-        text: 'We would like to enable the automated dispatch pickup from our Rajshahi warehouse. Does the system support automatic tracking synchronization?',
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: 'msg-6',
-        author: 'Krisikunjo Logistics Admin',
-        authorRole: 'Admin',
-        authorInitials: 'LA',
-        time: 'Oct 21, 2026 09:30 AM',
-        text: 'Yes! When you change the order status to "Delivery Sent", input the courier tracking number and the customer app syncs the delivery location automatically.',
-        createdAt: new Date().toISOString(),
-      },
-    ],
-  },
-];
-
 @Injectable()
 export class VendorSupportService {
   private readonly logger = new Logger(VendorSupportService.name);
@@ -147,7 +32,7 @@ export class VendorSupportService {
         fs.mkdirSync(dir, { recursive: true });
       }
       if (!fs.existsSync(this.storageFilePath)) {
-        fs.writeFileSync(this.storageFilePath, JSON.stringify(initialSeedTickets, null, 2), 'utf8');
+        fs.writeFileSync(this.storageFilePath, JSON.stringify([], null, 2), 'utf8');
       }
     } catch (e) {
       this.logger.error('Failed to initialize ticket storage file:', e);
@@ -157,14 +42,14 @@ export class VendorSupportService {
   private readTickets(): VendorSupportTicket[] {
     try {
       if (!fs.existsSync(this.storageFilePath)) {
-        return initialSeedTickets;
+        return [];
       }
       const data = fs.readFileSync(this.storageFilePath, 'utf8');
       const parsed = JSON.parse(data);
-      return Array.isArray(parsed) && parsed.length > 0 ? parsed : initialSeedTickets;
+      return Array.isArray(parsed) ? parsed : [];
     } catch (e) {
       this.logger.error('Error reading tickets file:', e);
-      return initialSeedTickets;
+      return [];
     }
   }
 

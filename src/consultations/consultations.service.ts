@@ -112,6 +112,27 @@ export class ConsultationsService {
   }
 
   /**
+   * Get consultation ticket statistics (total, waiting, open, resolved)
+   */
+  async getStats(expertId?: string) {
+    const whereClause = expertId ? { assignedExpertId: expertId } : {};
+
+    const [totalTickets, waitingTickets, openTickets, resolvedTickets] = await Promise.all([
+      this.prisma.consultationTicket.count({ where: whereClause }),
+      this.prisma.consultationTicket.count({ where: { ...whereClause, status: 'Waiting for Reply' } }),
+      this.prisma.consultationTicket.count({ where: { ...whereClause, status: 'Open' } }),
+      this.prisma.consultationTicket.count({ where: { ...whereClause, status: 'Resolved' } }),
+    ]);
+
+    return {
+      totalTickets,
+      waitingTickets,
+      openTickets,
+      resolvedTickets,
+    };
+  }
+
+  /**
    * 2. Find single consultation ticket by ID
    */
   async findOne(id: string) {
@@ -378,6 +399,10 @@ export class ConsultationsService {
         where: { id: ticketId },
       });
 
+      if (existing.assignedExpertId || existing.assignedExpertName) {
+        await this.syncExpertRating(existing.assignedExpertId, existing.assignedExpertName);
+      }
+
       if (this.gateway?.server) {
         this.gateway.server.emit('ticket_deleted', { ticketId });
       }
@@ -412,7 +437,7 @@ export class ConsultationsService {
     const updated = await this.prisma.consultationTicket.update({
       where: { id: ticketId },
       data: {
-        ratingStars: dto.stars,
+        ratingStars: dto.stars !== undefined && dto.stars !== null ? Number(dto.stars) : 5,
         ratingComment: dto.comment ? dto.comment.trim() : null,
         ratedAt: new Date(),
       },
@@ -422,6 +447,9 @@ export class ConsultationsService {
         },
       },
     });
+
+    // Synchronize expert rating based on new consultation rating
+    await this.syncExpertRating(updated.assignedExpertId, updated.assignedExpertName);
 
     const mapped = this.mapTicketToResponse(updated);
     this.notifyTicketCreatedOrUpdated(mapped);
@@ -458,6 +486,115 @@ export class ConsultationsService {
       );
     } catch (err) {
       this.logger.error(`Error sending consultation resolution email for ticket #${ticket.ticketNumber}:`, err);
+    }
+  }
+
+  /**
+   * 9. Recalculate and synchronize an expert's rating and ticket count across
+   * ExpertProfile and consultation tickets based on user reviews submitted on /consultation
+   */
+  async syncExpertRating(expertId?: string | null, expertName?: string | null) {
+    try {
+      if (!expertId && !expertName) return;
+
+      // Locate the expert user in the database
+      const orUserConditions: any[] = [];
+      if (expertId) {
+        orUserConditions.push({ id: expertId });
+        orUserConditions.push({ expertProfile: { id: expertId } });
+      }
+      if (expertName && expertName.trim()) {
+        orUserConditions.push({ name: { equals: expertName.trim(), mode: 'insensitive' } });
+      }
+
+      const expertUser = await this.prisma.user.findFirst({
+        where: {
+          role: Role.EXPERT,
+          OR: orUserConditions,
+        },
+        include: {
+          expertProfile: true,
+        },
+      });
+
+      // Build consultation ticket matching conditions
+      const orTicketConditions: any[] = [];
+      if (expertUser) {
+        orTicketConditions.push({ assignedExpertId: expertUser.id });
+        if (expertUser.expertProfile?.id) {
+          orTicketConditions.push({ assignedExpertId: expertUser.expertProfile.id });
+        }
+        if (expertUser.name) {
+          orTicketConditions.push({ assignedExpertName: { equals: expertUser.name, mode: 'insensitive' } });
+        }
+      }
+      if (expertId) {
+        orTicketConditions.push({ assignedExpertId: expertId });
+      }
+      if (expertName && expertName.trim()) {
+        orTicketConditions.push({ assignedExpertName: { equals: expertName.trim(), mode: 'insensitive' } });
+      }
+
+      if (orTicketConditions.length === 0) return;
+
+      const tickets = await this.prisma.consultationTicket.findMany({
+        where: {
+          OR: orTicketConditions,
+        },
+        select: {
+          id: true,
+          ratingStars: true,
+        },
+      });
+
+      const totalTickets = tickets.length;
+      const ratedTickets = tickets.filter(
+        (t) => typeof t.ratingStars === 'number' && t.ratingStars > 0,
+      );
+
+      const avgRating =
+        ratedTickets.length > 0
+          ? Number(
+              (
+                ratedTickets.reduce((sum, t) => sum + (t.ratingStars || 0), 0) /
+                ratedTickets.length
+              ).toFixed(1),
+            )
+          : (expertUser?.expertProfile?.rating != null ? Number(expertUser.expertProfile.rating) : 5.0);
+
+      // Update ExpertProfile if expertUser exists
+      if (expertUser) {
+        await this.prisma.expertProfile.upsert({
+          where: { userId: expertUser.id },
+          create: {
+            userId: expertUser.id,
+            specialization: 'Agricultural Specialist',
+            designation: 'Agricultural Specialist',
+            rating: avgRating,
+            assignedTicketsCount: totalTickets,
+          },
+          update: {
+            rating: avgRating,
+            assignedTicketsCount: totalTickets,
+          },
+        });
+      }
+
+      // Update assignedExpertRating on all tickets for this expert
+      await this.prisma.consultationTicket.updateMany({
+        where: {
+          OR: orTicketConditions,
+        },
+        data: {
+          assignedExpertRating: avgRating,
+        },
+      });
+
+      this.logger.log(
+        `Synchronized expert rating: ${expertName || expertId} -> avgRating: ${avgRating} (${ratedTickets.length} rated / ${totalTickets} total tickets)`,
+      );
+    } catch (err) {
+      this.logger.error('Failed to sync expert rating:', err);
     }
   }
 }

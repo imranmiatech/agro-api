@@ -38,9 +38,25 @@ export class ExpertsService {
 
   /**
    * Helper function to map a database User record with ExpertProfile into ExpertItem format.
-   * 100% dynamic - extracts directly from database record.
+   * 100% dynamic - extracts directly from database record and incorporates live consultation ratings.
    */
-  private mapUserToExpert(user: any): ExpertItem {
+  private mapUserToExpert(
+    user: any,
+    liveRating?: number,
+    liveTicketsCount?: number,
+  ): ExpertItem {
+    const computedRating =
+      liveRating !== undefined
+        ? liveRating
+        : user.expertProfile?.rating != null
+        ? Number(user.expertProfile.rating)
+        : 5.0;
+
+    const computedTicketsCount =
+      liveTicketsCount !== undefined
+        ? liveTicketsCount
+        : user.expertProfile?.assignedTicketsCount ?? 0;
+
     return {
       id: user.id,
       name: user.name,
@@ -54,8 +70,8 @@ export class ExpertsService {
       avatar: user.avatar || '',
       status: user.status as 'ACTIVE' | 'INACTIVE' | 'SUSPENDED',
       isAvailableForSupport: user.expertProfile?.isAvailableForSupport ?? false,
-      assignedTicketsCount: user.expertProfile?.assignedTicketsCount ?? 0,
-      rating: user.expertProfile?.rating ?? 0,
+      assignedTicketsCount: computedTicketsCount,
+      rating: computedRating,
       createdAt:
         user.createdAt?.toISOString?.() || new Date(user.createdAt).toISOString(),
     };
@@ -109,7 +125,8 @@ export class ExpertsService {
   }
 
   /**
-   * Find all experts with optional filtering and search directly from database
+   * Find all experts with optional filtering and search directly from database.
+   * Ratings and tickets count are calculated live from consultation tickets!
    */
   async findAll(query: QueryExpertDto) {
     const { search, specialization, status, page = 1, limit = 50 } = query;
@@ -150,7 +167,7 @@ export class ExpertsService {
       ];
     }
 
-    const [users, total] = await Promise.all([
+    const [users, total, allTickets] = await Promise.all([
       this.prisma.user.findMany({
         where,
         include: { expertProfile: true },
@@ -159,9 +176,48 @@ export class ExpertsService {
         take: limit,
       }),
       this.prisma.user.count({ where }),
+      this.prisma.consultationTicket.findMany({
+        select: {
+          id: true,
+          assignedExpertId: true,
+          assignedExpertName: true,
+          ratingStars: true,
+        },
+      }),
     ]);
 
-    const formatted = users.map((u) => this.mapUserToExpert(u));
+    const formatted = users.map((u) => {
+      const userTickets = allTickets.filter((t) => {
+        const matchId =
+          t.assignedExpertId &&
+          (t.assignedExpertId === u.id || t.assignedExpertId === u.expertProfile?.id);
+        const matchName =
+          t.assignedExpertName &&
+          u.name &&
+          t.assignedExpertName.trim().toLowerCase() === u.name.trim().toLowerCase();
+        return matchId || matchName;
+      });
+
+      const rated = userTickets.filter(
+        (t) => typeof t.ratingStars === 'number' && t.ratingStars > 0,
+      );
+
+      const liveRating =
+        rated.length > 0
+          ? Number(
+              (
+                rated.reduce((sum, t) => sum + (t.ratingStars || 0), 0) /
+                rated.length
+              ).toFixed(1),
+            )
+          : u.expertProfile?.rating != null
+          ? Number(u.expertProfile.rating)
+          : 5.0;
+
+      const liveTicketsCount = userTickets.length;
+
+      return this.mapUserToExpert(u, liveRating, liveTicketsCount);
+    });
 
     return {
       data: formatted,
@@ -175,7 +231,7 @@ export class ExpertsService {
   }
 
   /**
-   * Find single expert directly from database by ID
+   * Find single expert directly from database by ID with live consultation rating
    */
   async findOne(id: string): Promise<ExpertItem> {
     const user = await this.prisma.user.findFirst({
@@ -192,7 +248,39 @@ export class ExpertsService {
       throw new NotFoundException(`Expert with ID "${id}" was not found`);
     }
 
-    return this.mapUserToExpert(user);
+    const userTickets = await this.prisma.consultationTicket.findMany({
+      where: {
+        OR: [
+          { assignedExpertId: user.id },
+          ...(user.expertProfile?.id ? [{ assignedExpertId: user.expertProfile.id }] : []),
+          { assignedExpertName: { equals: user.name, mode: 'insensitive' } },
+        ],
+      },
+      select: {
+        id: true,
+        ratingStars: true,
+      },
+    });
+
+    const rated = userTickets.filter(
+      (t) => typeof t.ratingStars === 'number' && t.ratingStars > 0,
+    );
+
+    const liveRating =
+      rated.length > 0
+        ? Number(
+            (
+              rated.reduce((sum, t) => sum + (t.ratingStars || 0), 0) /
+              rated.length
+            ).toFixed(1),
+          )
+        : user.expertProfile?.rating != null
+        ? Number(user.expertProfile.rating)
+        : 5.0;
+
+    const liveTicketsCount = userTickets.length;
+
+    return this.mapUserToExpert(user, liveRating, liveTicketsCount);
   }
 
   /**
@@ -299,7 +387,8 @@ export class ExpertsService {
   }
 
   /**
-   * 100% dynamic metrics aggregation computed directly from database
+   * 100% dynamic metrics aggregation computed directly from database,
+   * with average rating and total tickets derived from consultation tickets.
    */
   async getMetrics() {
     const totalExperts = await this.prisma.user.count({
@@ -320,22 +409,41 @@ export class ExpertsService {
       (e) => e.expertProfile?.isAvailableForSupport !== false,
     ).length;
 
-    const allProfiles = await this.prisma.expertProfile.findMany();
+    // Fetch all consultation tickets
+    const allTickets = await this.prisma.consultationTicket.findMany({
+      select: {
+        id: true,
+        ratingStars: true,
+      },
+    });
 
-    const totalTickets = allProfiles.reduce(
-      (acc, curr) => acc + (curr.assignedTicketsCount || 0),
-      0,
+    const totalTickets = allTickets.length;
+    const ratedTickets = allTickets.filter(
+      (t) => typeof t.ratingStars === 'number' && t.ratingStars > 0,
     );
 
-    const averageRating =
-      allProfiles.length > 0
-        ? Number(
-            (
-              allProfiles.reduce((acc, curr) => acc + (curr.rating || 0), 0) /
-              allProfiles.length
-            ).toFixed(1),
-          )
-        : 0;
+    let averageRating = 0;
+    if (ratedTickets.length > 0) {
+      averageRating = Number(
+        (
+          ratedTickets.reduce((acc, curr) => acc + (curr.ratingStars || 0), 0) /
+          ratedTickets.length
+        ).toFixed(1),
+      );
+    } else {
+      const allProfiles = await this.prisma.expertProfile.findMany({
+        select: { rating: true },
+      });
+      averageRating =
+        allProfiles.length > 0
+          ? Number(
+              (
+                allProfiles.reduce((acc, curr) => acc + (curr.rating || 0), 0) /
+                allProfiles.length
+              ).toFixed(1),
+            )
+          : 0;
+    }
 
     return {
       totalExperts,

@@ -38,6 +38,19 @@ export class ConsultationsController {
   }
 
   /**
+   * GET /consultations/stats - Get consultation ticket statistics
+   */
+  @Get('stats')
+  @ResponseMessage('Consultation statistics retrieved successfully')
+  @ApiOperation({
+    summary: 'Get consultation ticket statistics and total count',
+    description: 'Returns count of total tickets, waiting tickets, and resolved tickets.',
+  })
+  async getStats() {
+    return this.consultationsService.getStats();
+  }
+
+  /**
    * 2. GET /consultations/:id - Get single consultation ticket by ID
    */
   @Get(':id')

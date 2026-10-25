@@ -6,10 +6,11 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StripeService } from '../billing/stripe.service.js';
+import { BillingService } from '../billing/billing.service.js';
 import { CreateOrderDto } from './dto/create-order.dto.js';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto.js';
 import { QueryOrderDto } from './dto/query-order.dto.js';
-import { OrderStatus, PaymentStatus } from '../generated/prisma/enums.js';
+import { OrderStatus, PaymentStatus, ProductStatus } from '../generated/prisma/enums.js';
 
 @Injectable()
 export class OrdersService {
@@ -18,6 +19,7 @@ export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly stripeService: StripeService,
+    private readonly billingService: BillingService,
   ) {}
 
   /**
@@ -76,6 +78,8 @@ export class OrdersService {
       trackingNumber: order.trackingNumber || `KK-TRK-${order.orderNumber.replace(/[^0-9]/g, '') || '9921'}`,
       estimatedDelivery: order.estimatedDelivery || '2-3 Business Days',
       trackingMilestones: order.trackingMilestones || [],
+      isDeleted: Boolean((order as any).isDeleted),
+      deletedAt: (order as any).deletedAt || null,
       items: (order.items || []).map((item: any) => ({
         id: item.id,
         productId: item.productId,
@@ -209,6 +213,42 @@ export class OrdersService {
       },
     ];
 
+    // Resolve items with valid database products and vendors
+    const resolvedItems = await Promise.all(
+      dto.items.map(async (item) => {
+        let validProductId: string | null = null;
+        let validVendorId: string | null = item.vendorId || null;
+
+        if (item.productId) {
+          const prod = await this.prisma.product.findFirst({
+            where: {
+              OR: [{ id: String(item.productId) }, { slug: String(item.productId) }],
+            },
+            select: { id: true, vendorId: true },
+          });
+
+          if (prod) {
+            validProductId = prod.id;
+            if (!validVendorId && prod.vendorId) {
+              validVendorId = prod.vendorId;
+            }
+          }
+        }
+
+        return {
+          productId: validProductId,
+          productName: item.productName.trim(),
+          productImage: item.productImage.trim(),
+          category: item.category?.trim() || 'Agriculture',
+          sku: item.sku?.trim() || null,
+          price: Number(item.price),
+          quantity: Number(item.quantity) || 1,
+          deliveryCharge: Number(item.deliveryCharge || 0),
+          vendorId: validVendorId,
+        };
+      }),
+    );
+
     // Create Order and Items in DB
     const createdOrder = await this.prisma.order.create({
       data: {
@@ -237,17 +277,7 @@ export class OrdersService {
         estimatedDelivery: '2-3 Business Days',
         trackingMilestones: initialMilestones,
         items: {
-          create: dto.items.map((item) => ({
-            productId: item.productId || null,
-            productName: item.productName.trim(),
-            productImage: item.productImage.trim(),
-            category: item.category?.trim() || 'Agriculture',
-            sku: item.sku?.trim() || null,
-            price: Number(item.price),
-            quantity: Number(item.quantity) || 1,
-            deliveryCharge: Number(item.deliveryCharge || 0),
-            vendorId: item.vendorId || null,
-          })),
+          create: resolvedItems,
         },
       },
       include: {
@@ -294,6 +324,15 @@ export class OrdersService {
    */
   async findAll(query: QueryOrderDto) {
     const where: any = {};
+
+    // Soft-delete filtering: default to active non-deleted orders
+    if (query.isDeleted === 'true' || query.isDeleted === '1') {
+      where.isDeleted = true;
+    } else if (query.isDeleted === 'all' || query.includeDeleted === 'true') {
+      // include all orders without isDeleted filter
+    } else {
+      where.isDeleted = false;
+    }
 
     if (query.email?.trim()) {
       where.customerEmail = { contains: query.email.trim(), mode: 'insensitive' };
@@ -397,6 +436,7 @@ export class OrdersService {
       where: {
         OR: [{ id: trimmed }, { orderNumber: trimmed }],
       },
+      include: { items: true },
     });
 
     if (!existing) {
@@ -421,6 +461,104 @@ export class OrdersService {
     if (dto.trackingNumber !== undefined) dataToUpdate.trackingNumber = dto.trackingNumber?.trim() || null;
     if (dto.estimatedDelivery !== undefined) dataToUpdate.estimatedDelivery = dto.estimatedDelivery?.trim() || null;
 
+    // When status changes to DELIVERED, advance delivery milestones
+    if (nextStatus === OrderStatus.DELIVERED) {
+      if (Array.isArray(existing.trackingMilestones)) {
+        const updatedMilestones = (existing.trackingMilestones as any[]).map((m: any) => ({
+          ...m,
+          completed: true,
+          current: m.title?.includes('Delivery') || m.title?.includes('Farmgate'),
+        }));
+        dataToUpdate.trackingMilestones = updatedMilestones;
+      }
+    }
+
+    // 1. Stock Decrement on DELIVERED
+    if (nextStatus === OrderStatus.DELIVERED && existing.status !== OrderStatus.DELIVERED) {
+      for (const item of existing.items) {
+        if (item.productId) {
+          const product = await this.prisma.product.findUnique({
+            where: { id: item.productId },
+          });
+
+          if (product) {
+            const newStock = Math.max(0, product.stock - (item.quantity || 1));
+            const newStatus =
+              newStock === 0 ? ProductStatus.OUT_OF_STOCK : product.status;
+
+            await this.prisma.product.update({
+              where: { id: product.id },
+              data: {
+                stock: newStock,
+                status: newStatus,
+              },
+            });
+
+            this.logger.log(
+              `Stock deducted for product '${product.name}' (${product.id}): ${product.stock} -> ${newStock} upon delivery of order #${existing.orderNumber}`,
+            );
+          }
+        }
+      }
+
+      // Automated Vendor Settlement: 100% on platform; Admin retains commission; vendor payout scheduled for 10 minutes later
+      const vendorTotals = new Map<string, number>();
+      for (const item of existing.items) {
+        if (item.vendorId) {
+          const itemTotal = Number(item.price) * Number(item.quantity);
+          vendorTotals.set(
+            item.vendorId,
+            (vendorTotals.get(item.vendorId) || 0) + itemTotal,
+          );
+        }
+      }
+
+      for (const [vendorId, totalAmount] of vendorTotals.entries()) {
+        try {
+          await this.billingService.recordOrderSettlement({
+            orderId: existing.orderNumber,
+            customerEmail: existing.customerEmail,
+            vendorId,
+            totalAmount,
+            currency: 'usd',
+          });
+        } catch (e: any) {
+          this.logger.error(
+            `Error creating vendor payout settlement for order #${existing.orderNumber}: ${e.message}`,
+          );
+        }
+      }
+    } else if (existing.status === OrderStatus.DELIVERED && nextStatus === OrderStatus.CANCELLED) {
+      // 2. Restore stock if delivered order is cancelled
+      for (const item of existing.items) {
+        if (item.productId) {
+          const product = await this.prisma.product.findUnique({
+            where: { id: item.productId },
+          });
+
+          if (product) {
+            const restoredStock = product.stock + (item.quantity || 1);
+            const restoredStatus =
+              product.status === ProductStatus.OUT_OF_STOCK && restoredStock > 0
+                ? ProductStatus.ACTIVE
+                : product.status;
+
+            await this.prisma.product.update({
+              where: { id: product.id },
+              data: {
+                stock: restoredStock,
+                status: restoredStatus,
+              },
+            });
+
+            this.logger.log(
+              `Stock restored for product '${product.name}' (${product.id}): ${product.stock} -> ${restoredStock} due to order cancellation`,
+            );
+          }
+        }
+      }
+    }
+
     const updated = await this.prisma.order.update({
       where: { id: existing.id },
       data: dataToUpdate,
@@ -443,7 +581,10 @@ export class OrdersService {
   /**
    * 5. Delete an order
    */
-  async remove(idOrNumber: string) {
+    /**
+   * 5. Delete an order (Supports both SOFT delete and HARD delete)
+   */
+  async remove(idOrNumber: string, mode: 'soft' | 'hard' = 'soft') {
     const trimmed = idOrNumber?.trim();
     const existing = await this.prisma.order.findFirst({
       where: {
@@ -456,12 +597,45 @@ export class OrdersService {
       throw new NotFoundException(`Order ${idOrNumber} not found`);
     }
 
+    if (mode === 'soft') {
+      await this.prisma.order.update({
+        where: { id: existing.id },
+        data: {
+          isDeleted: true,
+          deletedAt: new Date(),
+        },
+      });
+
+      this.logger.log(`Order #${existing.orderNumber} soft-deleted (archived) successfully`);
+      return {
+        success: true,
+        mode: 'soft',
+        message: `Order #${existing.orderNumber} removed from active list (archived)`,
+      };
+    }
+
+    // Hard delete: permanently erase
     await this.prisma.$transaction(async (tx) => {
       // Disassociate transaction if exists
       await tx.transaction
         .updateMany({
           where: { orderId: existing.id },
           data: { orderId: null },
+        })
+        .catch(() => {});
+
+      // Disassociate product reviews if exists
+      await (tx as any).productReview
+        ?.updateMany({
+          where: { orderId: existing.id },
+          data: { orderId: null },
+        })
+        .catch(() => {});
+
+      // Delete order messages if exists
+      await (tx as any).orderMessage
+        ?.deleteMany({
+          where: { orderId: existing.id },
         })
         .catch(() => {});
 
@@ -474,7 +648,197 @@ export class OrdersService {
       });
     });
 
-    this.logger.log(`Order #${existing.orderNumber} deleted successfully`);
-    return { success: true, message: `Order #${existing.orderNumber} deleted successfully` };
+    this.logger.log(`Order #${existing.orderNumber} permanently deleted successfully`);
+    return {
+      success: true,
+      mode: 'hard',
+      message: `Order #${existing.orderNumber} permanently deleted successfully`,
+    };
   }
+
+  /**
+   * Restore a soft-deleted order back to active list
+   */
+  async restore(idOrNumber: string) {
+    const trimmed = idOrNumber?.trim();
+    const existing = await this.prisma.order.findFirst({
+      where: {
+        OR: [{ id: trimmed }, { orderNumber: trimmed }],
+      },
+    });
+
+    if (!existing) {
+      throw new NotFoundException(`Order ${idOrNumber} not found`);
+    }
+
+    await this.prisma.order.update({
+      where: { id: existing.id },
+      data: {
+        isDeleted: false,
+        deletedAt: null,
+      },
+    });
+
+    this.logger.log(`Order #${existing.orderNumber} restored to active list`);
+    return {
+      success: true,
+      message: `Order #${existing.orderNumber} restored successfully`,
+    };
+  }
+
+  /**
+   * 6. Bulk Delete Orders (Supports both SOFT delete and HARD delete)
+   */
+  async bulkRemove(ids: string[], mode: 'soft' | 'hard' = 'soft') {
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return { success: true, count: 0, message: 'No orders provided for deletion' };
+    }
+
+    const trimmedIds = ids.map((id) => String(id || '').trim()).filter(Boolean);
+
+    if (mode === 'soft') {
+      const res = await this.prisma.order.updateMany({
+        where: {
+          OR: [{ id: { in: trimmedIds } }, { orderNumber: { in: trimmedIds } }],
+        },
+        data: {
+          isDeleted: true,
+          deletedAt: new Date(),
+        },
+      });
+
+      return {
+        success: true,
+        mode: 'soft',
+        count: res.count,
+        message: `${res.count} orders removed from active list (archived)`,
+      };
+    }
+
+    // Hard delete:
+    const orders = await this.prisma.order.findMany({
+      where: {
+        OR: [{ id: { in: trimmedIds } }, { orderNumber: { in: trimmedIds } }],
+      },
+      select: { id: true, orderNumber: true },
+    });
+
+    let deletedCount = 0;
+    for (const order of orders) {
+      try {
+        await this.prisma.$transaction(async (tx) => {
+          await tx.transaction
+            .updateMany({ where: { orderId: order.id }, data: { orderId: null } })
+            .catch(() => {});
+
+          await (tx as any).productReview
+            ?.updateMany({ where: { orderId: order.id }, data: { orderId: null } })
+            .catch(() => {});
+
+          await (tx as any).orderMessage
+            ?.deleteMany({ where: { orderId: order.id } })
+            .catch(() => {});
+
+          await tx.orderItem.deleteMany({ where: { orderId: order.id } });
+          await tx.order.delete({ where: { id: order.id } });
+        });
+        deletedCount++;
+      } catch (err: any) {
+        this.logger.error(`Failed to permanently delete order ${order.orderNumber}: ${err.message}`);
+      }
+    }
+
+    return {
+      success: true,
+      mode: 'hard',
+      count: deletedCount,
+      message: `${deletedCount} orders permanently deleted successfully`,
+    };
+  }
+
+  /**
+   * 7. Get Order Invoice Data
+   */
+  async getInvoice(idOrNumber: string) {
+    const order = await this.findOne(idOrNumber);
+    return {
+      order,
+      invoiceNumber: `INV-${order.orderNumber.replace(/[^0-9]/g, '') || '1001'}`,
+      issuedDate: order.orderDate,
+    };
+  }
+
+  /**
+   * 8. Get Order Invoice Print HTML
+   */
+  async getInvoicePrintHtml(idOrNumber: string) {
+    const order = await this.findOne(idOrNumber);
+    const itemsHtml = (order.items || []).map((it: any) => `
+      <tr>
+        <td style="padding: 10px; border-bottom: 1px solid #eee;">${it.name || it.productName}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: center;">${it.qty || it.quantity}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">৳${Number(it.price || 0).toFixed(2)}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">৳${(Number(it.price || 0) * Number(it.qty || it.quantity || 1)).toFixed(2)}</td>
+      </tr>
+    `).join('');
+
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Invoice #${order.orderNumber}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 40px; color: #1e293b; }
+    .header { display: flex; justify-content: space-between; margin-bottom: 30px; border-bottom: 2px solid #0E4F5A; padding-bottom: 15px; }
+    .logo { font-size: 24px; font-weight: bold; color: #0E4F5A; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th { background: #f8fafc; padding: 10px; text-align: left; border-bottom: 2px solid #e2e8f0; font-size: 13px; }
+    .total-box { margin-top: 25px; text-align: right; }
+    .total-line { font-size: 18px; font-weight: bold; color: #0E4F5A; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="logo">KrishiKunjo Invoice</div>
+      <div style="font-size: 13px; color: #64748b; margin-top: 4px;">Order #${order.orderNumber}</div>
+    </div>
+    <div style="text-align: right; font-size: 13px; color: #64748b;">
+      <div>Date: ${order.orderDate}</div>
+      <div>Status: ${order.status} (${order.paymentStatus})</div>
+    </div>
+  </div>
+
+  <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 25px;">
+    <div>
+      <strong>Billed To:</strong><br />
+      ${order.customerName}<br />
+      ${order.customerEmail} | ${order.customerPhone}<br />
+      ${order.deliveryAddress || ''}
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Product</th>
+        <th style="text-align: center;">Qty</th>
+        <th style="text-align: right;">Price</th>
+        <th style="text-align: right;">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${itemsHtml}
+    </tbody>
+  </table>
+
+  <div class="total-box">
+    <div style="font-size: 14px; color: #64748b;">Subtotal: ৳${Number(order.subtotal || 0).toFixed(2)}</div>
+    <div style="font-size: 14px; color: #64748b;">Delivery Fee: ৳${Number(order.deliveryFee || 0).toFixed(2)}</div>
+    <div class="total-line" style="margin-top: 8px;">Total: ৳${Number(order.total || 0).toFixed(2)}</div>
+  </div>
+</body>
+</html>`;
+  }
+
 }

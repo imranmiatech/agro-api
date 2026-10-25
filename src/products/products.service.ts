@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CloudinaryService } from '../common/cloudinary/cloudinary.service.js';
-import { ProductStatus, Role } from '../generated/prisma/enums.js';
+import { OrderStatus, ProductStatus, Role } from '../generated/prisma/enums.js';
 import { CreateProductDto } from './dto/create-product.dto.js';
 import { UpdateProductDto } from './dto/update-product.dto.js';
 import { UpdateProductStatusDto } from './dto/update-product-status.dto.js';
@@ -149,9 +149,15 @@ export class ProductsService {
 
     if (query.status) {
       where.status = query.status;
+    } else if (!user || user.role === Role.CUSTOMER) {
+      where.status = ProductStatus.ACTIVE;
     }
 
-    if (query.category?.trim()) {
+    if (query.inStockOnly) {
+      where.stock = { gt: 0 };
+    }
+
+    if (query.category?.trim() && query.category.trim() !== 'All') {
       where.category = {
         equals: query.category.trim(),
         mode: 'insensitive',
@@ -187,6 +193,7 @@ export class ProductsService {
 
     const sortField = query.sortBy || 'createdAt';
     const sortDirection = query.sortOrder === 'asc' ? 'asc' : 'desc';
+    const isCustomSort = sortField === 'rating' || sortField === 'reviews';
 
     const include: any = {
       vendor: {
@@ -195,6 +202,16 @@ export class ProductsService {
           businessName: true,
           logo: true,
           category: true,
+          city: true,
+        },
+      },
+      reviews: {
+        select: {
+          id: true,
+          rating: true,
+          comment: true,
+          customerName: true,
+          createdAt: true,
         },
       },
     };
@@ -210,24 +227,60 @@ export class ProductsService {
       };
     }
 
-    const [total, products] = await Promise.all([
+    const [total, rawProducts] = await Promise.all([
       this.prisma.product.count({ where }),
       this.prisma.product.findMany({
         where,
-        skip,
-        take: limit,
-        orderBy: { [sortField]: sortDirection },
+        skip: isCustomSort ? 0 : skip,
+        take: isCustomSort ? 1000 : limit,
+        orderBy: isCustomSort ? { createdAt: 'desc' } : { [sortField]: sortDirection },
         include,
       }),
     ]);
 
+    // Compute average ratings and review metrics for all products
+    let products = rawProducts.map((prod) => {
+      const reviews = prod.reviews || [];
+      const reviewsCount = reviews.length;
+      const ratingSum = reviews.reduce((sum: number, r: any) => sum + Number(r.rating || 0), 0);
+      const averageRating = reviewsCount > 0 ? Number((ratingSum / reviewsCount).toFixed(1)) : 0;
+
+      return {
+        ...prod,
+        averageRating,
+        rating: averageRating,
+        reviewsCount,
+        totalReviews: reviewsCount,
+        reviews,
+      };
+    });
+
+    // Filter by minRating if specified
+    if (query.minRating !== undefined && Number(query.minRating) > 0) {
+      products = products.filter((p) => p.averageRating >= Number(query.minRating));
+    }
+
+    // Sort by rating or reviews if requested
+    if (sortField === 'rating') {
+      products.sort((a, b) =>
+        sortDirection === 'asc' ? a.averageRating - b.averageRating : b.averageRating - a.averageRating,
+      );
+    } else if (sortField === 'reviews') {
+      products.sort((a, b) =>
+        sortDirection === 'asc' ? a.totalReviews - b.totalReviews : b.totalReviews - a.totalReviews,
+      );
+    }
+
+    const finalProducts = isCustomSort ? products.slice(skip, skip + limit) : products;
+    const finalTotal = query.minRating ? products.length : total;
+
     return {
-      products,
+      products: finalProducts,
       meta: {
-        total,
+        total: finalTotal,
         page,
         limit,
-        totalPages: Math.ceil(total / limit) || 1,
+        totalPages: Math.ceil(finalTotal / limit) || 1,
       },
     };
   }
@@ -277,6 +330,9 @@ export class ProductsService {
             role: true,
           },
         },
+        reviews: {
+          orderBy: { createdAt: 'desc' },
+        },
       },
     });
 
@@ -284,7 +340,19 @@ export class ProductsService {
       throw new NotFoundException(`Product not found with identifier: ${identifier}`);
     }
 
-    return product;
+    const reviews = product.reviews || [];
+    const reviewsCount = reviews.length;
+    const ratingSum = reviews.reduce((sum: number, r: any) => sum + Number(r.rating || 0), 0);
+    const averageRating = reviewsCount > 0 ? Number((ratingSum / reviewsCount).toFixed(1)) : 0;
+
+    return {
+      ...product,
+      averageRating,
+      rating: averageRating,
+      reviewsCount,
+      totalReviews: reviewsCount,
+      reviews,
+    };
   }
 
   /**
@@ -805,14 +873,149 @@ export class ProductsService {
             city: true,
           },
         },
+        reviews: {
+          select: {
+            rating: true,
+          },
+        },
       },
     });
 
-    return products;
+    return products.map((prod) => {
+      const reviews = prod.reviews || [];
+      const reviewsCount = reviews.length;
+      const ratingSum = reviews.reduce((sum: number, r: any) => sum + Number(r.rating || 0), 0);
+      const averageRating = reviewsCount > 0 ? Number((ratingSum / reviewsCount).toFixed(1)) : 0;
+
+      return {
+        ...prod,
+        averageRating,
+        rating: averageRating,
+        reviewsCount,
+        totalReviews: reviewsCount,
+      };
+    });
+  }
+
+  /**
+   * 7b. Retrieve Top Selling Products based on actual order items sold.
+   * Backfills with active products if sold products count < limit so store always has up to 6 real products.
+   */
+  async findTopSellingProducts(limit = 6) {
+    const take = Math.max(1, Math.min(24, Number(limit) || 6));
+
+    // 1. Group order items by product to sum quantity sold
+    const topSoldItems = await this.prisma.orderItem.groupBy({
+      by: ['productId'],
+      _sum: { quantity: true },
+      where: {
+        productId: { not: null },
+        order: {
+          status: {
+            notIn: [OrderStatus.CANCELLED],
+          },
+        },
+      },
+      orderBy: {
+        _sum: {
+          quantity: 'desc',
+        },
+      },
+      take,
+    });
+
+    const soldMap = new Map<string, number>();
+    const soldProductIds: string[] = [];
+    for (const item of topSoldItems) {
+      if (item.productId) {
+        soldProductIds.push(item.productId);
+        soldMap.set(item.productId, item._sum.quantity || 0);
+      }
+    }
+
+    const includeOptions = {
+      vendor: {
+        select: {
+          id: true,
+          businessName: true,
+          logo: true,
+          category: true,
+          city: true,
+        },
+      },
+      reviews: {
+        select: {
+          id: true,
+          rating: true,
+          comment: true,
+          customerName: true,
+          createdAt: true,
+        },
+      },
+    };
+
+    let products: any[] = [];
+
+    if (soldProductIds.length > 0) {
+      const soldProducts = await this.prisma.product.findMany({
+        where: {
+          id: { in: soldProductIds },
+          status: ProductStatus.ACTIVE,
+        },
+        include: includeOptions,
+      });
+
+      // Sort by sales count descending matching soldProductIds order
+      soldProducts.sort((a, b) => {
+        const countA = soldMap.get(a.id) || 0;
+        const countB = soldMap.get(b.id) || 0;
+        return countB - countA;
+      });
+
+      products = soldProducts;
+    }
+
+    // 2. If fewer than 'take' items, backfill with active products
+    if (products.length < take) {
+      const existingIds = products.map((p) => p.id);
+      const remainingTake = take - products.length;
+
+      const backfillProducts = await this.prisma.product.findMany({
+        where: {
+          status: ProductStatus.ACTIVE,
+          id: { notIn: existingIds },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: remainingTake,
+        include: includeOptions,
+      });
+
+      products = [...products, ...backfillProducts];
+    }
+
+    return products.map((prod) => {
+      const reviews = prod.reviews || [];
+      const reviewsCount = reviews.length;
+      const ratingSum = reviews.reduce((sum: number, r: any) => sum + Number(r.rating || 0), 0);
+      const averageRating = reviewsCount > 0 ? Number((ratingSum / reviewsCount).toFixed(1)) : 0;
+      const totalSold = soldMap.get(prod.id) || 0;
+
+      return {
+        ...prod,
+        averageRating,
+        rating: averageRating,
+        reviewsCount,
+        totalReviews: reviewsCount,
+        totalSold,
+      };
+    });
   }
 
   /**
    * 8. Search / List Vendors for Admin Product Creation Autocomplete
+
    */
   async searchVendorsForAdmin(search = '') {
     const query = (search || '').trim();

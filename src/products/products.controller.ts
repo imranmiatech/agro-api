@@ -154,6 +154,19 @@ export class ProductsController {
     return this.productsService.findLatestProducts(limit);
   }
 
+  @Get('top-selling')
+  @ResponseMessage('Top selling products retrieved successfully')
+  @ApiOperation({
+    summary: 'Get Top Selling Products (Public)',
+    description:
+      'Retrieves top 6 most sold active products calculated from completed customer orders and review ratings.',
+  })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 6 })
+  async getTopSellingProducts(@Query('limit') limit?: number) {
+    return this.productsService.findTopSellingProducts(limit);
+  }
+
+
   @Get('vendors/search')
   @ResponseMessage('Vendors list retrieved successfully')
   @ApiOperation({
