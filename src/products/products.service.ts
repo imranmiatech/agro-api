@@ -207,11 +207,7 @@ export class ProductsService {
       },
       reviews: {
         select: {
-          id: true,
           rating: true,
-          comment: true,
-          customerName: true,
-          createdAt: true,
         },
       },
     };
@@ -245,13 +241,14 @@ export class ProductsService {
       const ratingSum = reviews.reduce((sum: number, r: any) => sum + Number(r.rating || 0), 0);
       const averageRating = reviewsCount > 0 ? Number((ratingSum / reviewsCount).toFixed(1)) : 0;
 
+      const { reviews: _reviews, ...rest } = prod;
+
       return {
-        ...prod,
+        ...rest,
         averageRating,
         rating: averageRating,
         reviewsCount,
         totalReviews: reviewsCount,
-        reviews,
       };
     });
 
@@ -887,8 +884,10 @@ export class ProductsService {
       const ratingSum = reviews.reduce((sum: number, r: any) => sum + Number(r.rating || 0), 0);
       const averageRating = reviewsCount > 0 ? Number((ratingSum / reviewsCount).toFixed(1)) : 0;
 
+      const { reviews: _reviews, ...rest } = prod;
+
       return {
-        ...prod,
+        ...rest,
         averageRating,
         rating: averageRating,
         reviewsCount,
@@ -945,11 +944,7 @@ export class ProductsService {
       },
       reviews: {
         select: {
-          id: true,
           rating: true,
-          comment: true,
-          customerName: true,
-          createdAt: true,
         },
       },
     };
@@ -1002,8 +997,10 @@ export class ProductsService {
       const averageRating = reviewsCount > 0 ? Number((ratingSum / reviewsCount).toFixed(1)) : 0;
       const totalSold = soldMap.get(prod.id) || 0;
 
+      const { reviews: _reviews, ...rest } = prod;
+
       return {
-        ...prod,
+        ...rest,
         averageRating,
         rating: averageRating,
         reviewsCount,

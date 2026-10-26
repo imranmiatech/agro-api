@@ -82,4 +82,12 @@ export class AuthService {
   resetPassword(dto: ResetPasswordDto) {
     return this.passwordResetService.resetPassword(dto);
   }
+
+  /**
+   * 10. Logout User
+   */
+  logout(res?: any, refreshToken?: string) {
+    return this.loginService.logout(res, refreshToken);
+  }
 }
+

@@ -172,4 +172,20 @@ export class LoginService {
 
     return { accessToken, refreshToken };
   }
+
+  /**
+   * Logs out user, clears any authentication cookies if present
+   */
+  async logout(res?: any, refreshToken?: string) {
+    if (res && typeof res.clearCookie === 'function') {
+      res.clearCookie('accessToken');
+      res.clearCookie('refreshToken');
+      res.clearCookie('token');
+    }
+
+    return {
+      message: 'Logged out successfully',
+    };
+  }
 }
+

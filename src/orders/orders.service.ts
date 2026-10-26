@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -10,7 +11,7 @@ import { BillingService } from '../billing/billing.service.js';
 import { CreateOrderDto } from './dto/create-order.dto.js';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto.js';
 import { QueryOrderDto } from './dto/query-order.dto.js';
-import { OrderStatus, PaymentStatus, ProductStatus } from '../generated/prisma/enums.js';
+import { Role, OrderStatus, PaymentStatus, ProductStatus } from '../generated/prisma/enums.js';
 
 @Injectable()
 export class OrdersService {
@@ -99,15 +100,62 @@ export class OrdersService {
   }
 
   /**
+   * Generates a collision-resistant, dynamic, unique order number (e.g., KK-ORD-261026-89243)
+   * and verifies against the database to guarantee uniqueness and prevent P2002 errors.
+   */
+  private async generateUniqueOrderNumber(): Promise<string> {
+    const now = new Date();
+    const yy = String(now.getFullYear()).slice(-2);
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const datePrefix = `${yy}${mm}${dd}`;
+
+    let isUnique = false;
+    let candidate = '';
+    let attempts = 0;
+
+    while (!isUnique && attempts < 10) {
+      attempts++;
+      const randomSuffix = Math.floor(10000 + Math.random() * 90000);
+      candidate = `KK-ORD-${datePrefix}-${randomSuffix}`;
+
+      const existing = await this.prisma.order.findUnique({
+        where: { orderNumber: candidate },
+        select: { id: true },
+      });
+
+      if (!existing) {
+        isUnique = true;
+      }
+    }
+
+    if (!isUnique) {
+      candidate = `KK-ORD-${datePrefix}-${Date.now().toString().slice(-6)}`;
+    }
+
+    return candidate;
+  }
+
+  /**
    * 1. Place a new order with items, delivery calculation, and optional Stripe payment
    */
-  async create(dto: CreateOrderDto, userId?: string) {
+  async create(
+    dto: CreateOrderDto,
+    userId?: string,
+    currentUser?: { id: string; email: string; role: string },
+  ) {
+    if (currentUser?.id) {
+      userId = currentUser.id;
+    }
+    if (!dto.customerEmail && currentUser?.email) {
+      dto.customerEmail = currentUser.email;
+    }
+
     if (!dto.items || dto.items.length === 0) {
       throw new BadRequestException('Order must contain at least one item');
     }
 
-    const totalOrdersCount = await this.prisma.order.count();
-    const orderNumber = `KK-ORD-${(88000 + totalOrdersCount + 1).toString()}`;
+    const orderNumber = await this.generateUniqueOrderNumber();
 
     // Calculate Subtotal & Delivery Fee
     const calculatedSubtotal = dto.items.reduce(
@@ -249,41 +297,56 @@ export class OrdersService {
       }),
     );
 
-    // Create Order and Items in DB
-    const createdOrder = await this.prisma.order.create({
-      data: {
-        orderNumber,
-        userId: userId || null,
-        customerName: dto.customerName.trim(),
-        customerEmail: dto.customerEmail.trim().toLowerCase(),
-        customerPhone: dto.customerPhone.trim(),
-        deliveryAddress: dto.deliveryAddress.trim(),
-        district: dto.district.trim(),
-        upazila: dto.upazila?.trim() || null,
-        city: dto.city?.trim() || null,
-        postalCode: dto.postalCode?.trim() || null,
-        notes: dto.notes?.trim() || null,
-        subtotal: calculatedSubtotal,
-        deliveryFee: calculatedDelivery,
-        discount,
-        total: totalAmount,
-        paymentMethod: dto.paymentMethod || 'Cash on Delivery',
-        paymentStatus,
-        status: orderStatus,
-        transactionId,
-        stripePaymentIntentId,
-        courierName: 'KrishiKunjo Cold-Chain Logistics',
-        trackingNumber: `KK-TRK-${orderNumber.replace(/[^0-9]/g, '')}`,
-        estimatedDelivery: '2-3 Business Days',
-        trackingMilestones: initialMilestones,
-        items: {
-          create: resolvedItems,
-        },
-      },
-      include: {
-        items: true,
-      },
-    });
+    // Create Order and Items in DB with auto-retry on unique constraint collision
+    let createdOrder: any = null;
+    let finalOrderNumber = orderNumber;
+    let createAttempts = 0;
+
+    while (!createdOrder && createAttempts < 3) {
+      createAttempts++;
+      try {
+        createdOrder = await this.prisma.order.create({
+          data: {
+            orderNumber: finalOrderNumber,
+            userId: userId || null,
+            customerName: dto.customerName.trim(),
+            customerEmail: dto.customerEmail.trim().toLowerCase(),
+            customerPhone: dto.customerPhone.trim(),
+            deliveryAddress: dto.deliveryAddress.trim(),
+            district: dto.district.trim(),
+            upazila: dto.upazila?.trim() || null,
+            city: dto.city?.trim() || null,
+            postalCode: dto.postalCode?.trim() || null,
+            notes: dto.notes?.trim() || null,
+            subtotal: calculatedSubtotal,
+            deliveryFee: calculatedDelivery,
+            discount,
+            total: totalAmount,
+            paymentMethod: dto.paymentMethod || 'Cash on Delivery',
+            paymentStatus,
+            status: orderStatus,
+            transactionId,
+            stripePaymentIntentId,
+            courierName: 'KrishiKunjo Cold-Chain Logistics',
+            trackingNumber: `KK-TRK-${finalOrderNumber.replace(/[^0-9]/g, '')}`,
+            estimatedDelivery: '2-3 Business Days',
+            trackingMilestones: initialMilestones,
+            items: {
+              create: resolvedItems,
+            },
+          },
+          include: {
+            items: true,
+          },
+        });
+      } catch (err: any) {
+        if (err.code === 'P2002' && createAttempts < 3) {
+          finalOrderNumber = await this.generateUniqueOrderNumber();
+          continue;
+        }
+        throw err;
+      }
+    }
 
     this.logger.log(`Created new order #${createdOrder.orderNumber} for ${createdOrder.customerName}`);
     return this.formatOrder(createdOrder);
@@ -321,8 +384,15 @@ export class OrdersService {
 
   /**
    * 2. Find all orders with optional search & filters
+   * Scoped by role:
+   * - ADMIN: views all platform orders (can filter by email, vendorId, etc.)
+   * - VENDOR: views only orders that include their vendor products
+   * - CUSTOMER (or any regular logged-in user): views STRICTLY their own orders (userId or customerEmail)
    */
-  async findAll(query: QueryOrderDto) {
+  async findAll(
+    query: QueryOrderDto,
+    currentUser?: { id: string; email: string; role: string },
+  ) {
     const where: any = {};
 
     // Soft-delete filtering: default to active non-deleted orders
@@ -334,55 +404,97 @@ export class OrdersService {
       where.isDeleted = false;
     }
 
-    if (query.email?.trim()) {
-      where.customerEmail = { contains: query.email.trim(), mode: 'insensitive' };
+    const andClauses: any[] = [];
+
+    // Role-based scoping:
+    if (currentUser) {
+      if (currentUser.role === Role.ADMIN) {
+        // Admin sees all orders; optional filters from query
+        if (query.email?.trim()) {
+          andClauses.push({
+            customerEmail: { contains: query.email.trim(), mode: 'insensitive' },
+          });
+        }
+        if (query.vendorId?.trim()) {
+          andClauses.push({
+            items: {
+              some: {
+                vendorId: query.vendorId.trim(),
+              },
+            },
+          });
+        }
+      } else if (currentUser.role === Role.VENDOR) {
+        // Vendor sees only orders containing products of this vendor
+        const vendor = await this.prisma.vendorProfile.findUnique({
+          where: { userId: currentUser.id },
+          select: { id: true },
+        });
+        const validVendorId = vendor?.id || currentUser.id;
+        andClauses.push({
+          items: {
+            some: {
+              vendorId: validVendorId,
+            },
+          },
+        });
+      } else {
+        // Logged-in CUSTOMER: strictly isolated to their own user account
+        andClauses.push({
+          OR: [
+            { userId: currentUser.id },
+            { customerEmail: { equals: currentUser.email, mode: 'insensitive' } },
+          ],
+        });
+      }
+    } else {
+      // If unauthenticated: safeguard to never expose any orders
+      andClauses.push({ id: 'unauthenticated-forbidden-access' });
     }
 
     if (query.phone?.trim()) {
-      where.customerPhone = { contains: query.phone.trim() };
+      andClauses.push({ customerPhone: { contains: query.phone.trim() } });
     }
 
     if (query.status && query.status.trim() !== 'All') {
       const normalized = this.normalizeStatus(query.status);
       if (normalized) {
         if (normalized === OrderStatus.PROCESSING) {
-          where.status = { in: [OrderStatus.PROCESSING, OrderStatus.CONFIRMED] };
+          andClauses.push({ status: { in: [OrderStatus.PROCESSING, OrderStatus.CONFIRMED] } });
         } else {
-          where.status = normalized;
+          andClauses.push({ status: normalized });
         }
       }
-    }
-
-    if (query.vendorId?.trim()) {
-      where.items = {
-        some: {
-          vendorId: query.vendorId.trim(),
-        },
-      };
     }
 
     if (query.paymentStatus && query.paymentStatus.trim() !== 'All') {
       const normalizedPay = this.normalizePaymentStatus(query.paymentStatus);
       if (normalizedPay) {
-        where.paymentStatus = normalizedPay;
+        andClauses.push({ paymentStatus: normalizedPay });
       }
     }
 
     if (query.search?.trim()) {
       const q = query.search.trim();
-      where.OR = [
-        { orderNumber: { contains: q, mode: 'insensitive' } },
-        { customerName: { contains: q, mode: 'insensitive' } },
-        { customerEmail: { contains: q, mode: 'insensitive' } },
-        { customerPhone: { contains: q } },
-        {
-          items: {
-            some: {
-              productName: { contains: q, mode: 'insensitive' },
+      andClauses.push({
+        OR: [
+          { orderNumber: { contains: q, mode: 'insensitive' } },
+          { customerName: { contains: q, mode: 'insensitive' } },
+          { customerEmail: { contains: q, mode: 'insensitive' } },
+          { customerPhone: { contains: q } },
+          {
+            items: {
+              some: {
+                productName: { contains: q, mode: 'insensitive' },
+              },
             },
           },
-        },
-      ];
+        ],
+      });
+    }
+
+    if (andClauses.length > 0) {
+      where.AND = andClauses;
     }
 
     const take = Math.max(1, Math.min(100, Number(query.limit) || 20));
@@ -411,7 +523,10 @@ export class OrdersService {
   /**
    * 3. Find single order by ID or orderNumber
    */
-  async findOne(idOrNumber: string) {
+  async findOne(
+    idOrNumber: string,
+    currentUser?: { id: string; email: string; role: string },
+  ) {
     const trimmed = idOrNumber?.trim();
     const order = await this.prisma.order.findFirst({
       where: {
@@ -422,6 +537,30 @@ export class OrdersService {
 
     if (!order) {
       throw new NotFoundException(`Order ${idOrNumber} not found`);
+    }
+
+    // Role-based permission check:
+    if (currentUser && currentUser.role !== Role.ADMIN) {
+      if (currentUser.role === Role.VENDOR) {
+        const vendor = await this.prisma.vendorProfile.findUnique({
+          where: { userId: currentUser.id },
+          select: { id: true },
+        });
+        const vendorId = vendor?.id || currentUser.id;
+        const hasVendorItem = (order.items || []).some(
+          (item: any) => item.vendorId === vendorId,
+        );
+        if (!hasVendorItem) {
+          throw new ForbiddenException('You do not have access to view this order');
+        }
+      } else {
+        const isOwner =
+          order.userId === currentUser.id ||
+          order.customerEmail.toLowerCase() === currentUser.email.toLowerCase();
+        if (!isOwner) {
+          throw new ForbiddenException('You do not have access to view this order');
+        }
+      }
     }
 
     return this.formatOrder(order);

@@ -4,8 +4,11 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import {
+  ApiBearerAuth,
   ApiBody,
   ApiOperation,
   ApiResponse,
@@ -14,6 +17,7 @@ import {
 import { LoginService } from './login.service.js';
 import { LoginDto } from './dto/login.dto.js';
 import { RefreshTokenDto } from './dto/refresh-token.dto.js';
+import { LogoutDto } from './dto/logout.dto.js';
 import { ResponseMessage } from '../../common/decorators/response-message.decorator.js';
 
 @ApiTags('Auth - Login')
@@ -96,4 +100,37 @@ export class LoginController {
   async refreshTokens(@Body() dto: RefreshTokenDto) {
     return this.loginService.refreshTokens(dto);
   }
+
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ResponseMessage('Logged out successfully')
+  @ApiOperation({
+    summary: 'Logout User (Universal)',
+    description:
+      'Terminates user session, clears server-side authentication cookies (if present), and returns logout confirmation.',
+  })
+  @ApiBody({ type: LogoutDto, required: false })
+  @ApiResponse({
+    status: 200,
+    description: 'Logged out successfully',
+    schema: {
+      example: {
+        success: true,
+        statusCode: 200,
+        message: 'Logged out successfully',
+        data: {
+          message: 'Logged out successfully',
+        },
+        timestamp: '2026-10-26T09:50:00.000Z',
+      },
+    },
+  })
+  async logout(
+    @Res({ passthrough: true }) res?: Response,
+    @Body() dto?: LogoutDto,
+  ) {
+    return this.loginService.logout(res, dto?.refreshToken);
+  }
 }
+

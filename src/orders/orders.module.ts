@@ -4,9 +4,10 @@ import { OrdersController } from './orders.controller.js';
 import { OrderPdfService } from './order-pdf.service.js';
 import { PrismaModule } from '../prisma/prisma.module.js';
 import { BillingModule } from '../billing/billing.module.js';
+import { AuthModule } from '../auth/auth.module.js';
 
 @Module({
-  imports: [PrismaModule, BillingModule],
+  imports: [PrismaModule, BillingModule, AuthModule],
   controllers: [OrdersController],
   providers: [OrdersService, OrderPdfService],
   exports: [OrdersService, OrderPdfService],

@@ -12,17 +12,20 @@ import {
   Req,
   Header,
   Res,
+  UseGuards,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { OrdersService } from './orders.service.js';
 import { OrderPdfService } from './order-pdf.service.js';
 import { CreateOrderDto } from './dto/create-order.dto.js';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto.js';
 import { QueryOrderDto } from './dto/query-order.dto.js';
 import { ResponseMessage } from '../common/decorators/response-message.decorator.js';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 
 @ApiTags('Orders')
+@ApiBearerAuth()
 @Controller('orders')
 export class OrdersController {
   constructor(
@@ -31,39 +34,44 @@ export class OrdersController {
   ) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.CREATED)
   @ResponseMessage('Order placed successfully')
   @ApiOperation({
-    summary: 'Place New Order (Public / Customer)',
+    summary: 'Place New Order (Authenticated Customer)',
     description:
-      'Creates a new order with items, calculates subtotal & delivery fee, processes card payment via Stripe if selected, and creates order tracking milestones.',
+      'Creates a new order with items, calculates subtotal & delivery fee, processes card payment via Stripe if selected, and assigns order to logged-in user.',
   })
   @ApiResponse({ status: 201, description: 'Order placed successfully' })
   async create(@Body() dto: CreateOrderDto, @Req() req: Request) {
-    const userId = (req as any).user?.id || undefined;
-    return this.ordersService.create(dto, userId);
+    const user = (req as any).user;
+    return this.ordersService.create(dto, user?.id, user);
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard)
   @ResponseMessage('Orders retrieved successfully')
   @ApiOperation({
-    summary: 'List Orders (Customer Orders / Admin Orders)',
+    summary: 'List Orders (Logged-in User / Vendor / Admin)',
     description:
-      'Retrieves order list with optional customer email, phone, status filtering, and search.',
+      'Retrieves order list. Normal users see only their own orders, vendors see orders containing their products, and Admins can see all orders.',
   })
-  async findAll(@Query() query: QueryOrderDto) {
-    return this.ordersService.findAll(query);
+  async findAll(@Query() query: QueryOrderDto, @Req() req: Request) {
+    const user = (req as any).user;
+    return this.ordersService.findAll(query, user);
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard)
   @ResponseMessage('Order details retrieved successfully')
   @ApiOperation({
     summary: 'Get Order by ID or Order Number',
-    description: 'Retrieves complete order information with order items and tracking milestones.',
+    description: 'Retrieves complete order information with order items and tracking milestones for authorized users.',
   })
   @ApiParam({ name: 'id', description: 'Order ID or Order Number (e.g. KK-ORD-88001)' })
-  async findOne(@Param('id') id: string) {
-    return this.ordersService.findOne(id);
+  async findOne(@Param('id') id: string, @Req() req: Request) {
+    const user = (req as any).user;
+    return this.ordersService.findOne(id, user);
   }
 
   @Patch(':id/status')
