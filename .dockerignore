@@ -1,0 +1,39 @@
+# Dependencies & build output
+node_modules
+dist
+build
+coverage
+*.tsbuildinfo
+
+# Generated Prisma client (regenerated cleanly during Docker build)
+src/generated
+
+# Environment & secrets (never bake into image)
+.env
+.env.*
+!.env.example
+
+# Git & IDE / agent tooling
+.git
+.gitignore
+.gitattributes
+.vscode
+.idea
+.agents
+.claude
+.windsurf
+
+# Docker & docs
+Dockerfile
+docker-compose*.yml
+.dockerignore
+README.md
+
+# Local runtime uploads, data & tests
+uploads
+data
+test
+*.log
+npm-debug.log*
+.DS_Store
+update-desk.cjs

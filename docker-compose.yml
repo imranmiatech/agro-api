@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: agro-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-agro_db}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - agro_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-agro_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - agro-network
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agro-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${PORT:-3000}
+      # Inside Docker network, always connect to the `postgres` service on internal port 5432
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-agro_db}?schema=public
+    ports:
+      - "${PORT:-3000}:${PORT:-3000}"
+    volumes:
+      # Persists uploaded logos (/uploads/logos) and vendor_support_tickets.json across deploys
+      - agro_uploads_data:/app/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:$${PORT:-3000}/api/v1/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - agro-network
+
+volumes:
+  agro_postgres_data:
+  agro_uploads_data:
+
+networks:
+  agro-network:
+    driver: bridge
