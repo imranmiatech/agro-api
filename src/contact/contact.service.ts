@@ -1,7 +1,8 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { MailService } from '../mail/mail.service.js';
-import { ContactStatus } from '../generated/prisma/enums.js';
+import { NotificationService } from '../notification/notification.service.js';
+import { ContactStatus, NotificationType, Role } from '../generated/prisma/enums.js';
 import { CreateContactDto } from './dto/create-contact.dto.js';
 import { QueryContactDto } from './dto/query-contact.dto.js';
 import { UpdateContactStatusDto } from './dto/update-contact-status.dto.js';
@@ -13,6 +14,7 @@ export class ContactService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mailService: MailService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   /**
@@ -42,6 +44,14 @@ export class ContactService {
       .catch((err: any) => {
         this.logger.error(`Failed to send thank-you email: ${err?.message || err}`);
       });
+
+    void this.notificationService.notifyRole(Role.ADMIN, {
+      type: NotificationType.CONTACT,
+      title: `New Contact Inquiry: ${inquiry.subject || 'General Inquiry'}`,
+      message: `${inquiry.name} (${inquiry.email}) sent a new inquiry.`,
+      link: '/admin/contact',
+      referenceId: inquiry.id,
+    });
 
     return inquiry;
   }

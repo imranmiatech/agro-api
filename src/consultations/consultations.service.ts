@@ -6,8 +6,9 @@ import {
   UpdateConsultationStatusDto,
   RateConsultationDto,
 } from './dto/create-consultation.dto.js';
-import { Role } from '../generated/prisma/enums.js';
+import { NotificationType, Role } from '../generated/prisma/enums.js';
 import { MailService } from '../mail/mail.service.js';
+import { NotificationService } from '../notification/notification.service.js';
 
 @Injectable()
 export class ConsultationsService {
@@ -16,6 +17,7 @@ export class ConsultationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mailService: MailService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   private gateway?: any;
@@ -217,6 +219,33 @@ export class ConsultationsService {
 
     const mapped = this.mapTicketToResponse(ticket);
     this.notifyTicketCreatedOrUpdated(mapped);
+
+    if (ticket.assignedExpertId) {
+      void this.notificationService.createForUser(ticket.assignedExpertId, Role.EXPERT, {
+        type: NotificationType.CONSULTATION,
+        title: `New Consultation ${ticket.ticketNumber}`,
+        message: `${ticket.farmerName} requested advice on "${ticket.subject}".`,
+        link: '/expert/consultations',
+        referenceId: ticket.id,
+      });
+    } else {
+      void this.notificationService.notifyRole(Role.EXPERT, {
+        type: NotificationType.CONSULTATION,
+        title: `New Consultation ${ticket.ticketNumber}`,
+        message: `${ticket.farmerName} requested advice on "${ticket.subject}".`,
+        link: '/expert/consultations',
+        referenceId: ticket.id,
+      });
+    }
+
+    void this.notificationService.notifyRole(Role.ADMIN, {
+      type: NotificationType.CONSULTATION,
+      title: `New Farmer Consultation ${ticket.ticketNumber}`,
+      message: `${ticket.farmerName} opened a consultation ticket (${ticket.category}).`,
+      link: '/admin/experts',
+      referenceId: ticket.id,
+    });
+
     return mapped;
   }
 
@@ -293,6 +322,26 @@ export class ConsultationsService {
 
     // Broadcast in real-time to ticket room and dashboard clients
     this.notifyNewMessage(ticketId, result.message, result.ticket);
+
+    if (dto.sender === 'user') {
+      if (existing.assignedExpertId) {
+        void this.notificationService.createForUser(existing.assignedExpertId, Role.EXPERT, {
+          type: NotificationType.CONSULTATION,
+          title: `Farmer Replied on ${existing.ticketNumber}`,
+          message: `${dto.senderName}: ${dto.text.slice(0, 100)}`,
+          link: '/expert/consultations',
+          referenceId: existing.id,
+        });
+      } else {
+        void this.notificationService.notifyRole(Role.EXPERT, {
+          type: NotificationType.CONSULTATION,
+          title: `Farmer Replied on ${existing.ticketNumber}`,
+          message: `${dto.senderName}: ${dto.text.slice(0, 100)}`,
+          link: '/expert/consultations',
+          referenceId: existing.id,
+        });
+      }
+    }
 
     return result;
   }

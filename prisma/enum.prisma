@@ -64,3 +64,16 @@ enum ContactStatus {
   RESOLVED
 }
 
+enum NotificationType {
+  ORDER
+  PARTNER
+  CONSULTATION
+  SOIL_TEST
+  SUPPORT
+  CONTACT
+  PRODUCT
+  BILLING
+  SYSTEM
+}
+
+

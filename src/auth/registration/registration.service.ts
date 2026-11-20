@@ -7,6 +7,8 @@ import bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { OtpService } from '../otp/otp.service.js';
 import { LoginService } from '../login/login.service.js';
+import { NotificationService } from '../../notification/notification.service.js';
+import { NotificationType, Role } from '../../generated/prisma/enums.js';
 import { CustomerRegisterDto } from './dto/customer-register.dto.js';
 import { VendorRegisterDto } from './dto/vendor-register.dto.js';
 import { SendOtpDto } from '../otp/dto/send-otp.dto.js';
@@ -18,6 +20,7 @@ export class RegistrationService {
     private readonly prisma: PrismaService,
     private readonly otpService: OtpService,
     private readonly loginService: LoginService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   /**
@@ -173,6 +176,14 @@ export class RegistrationService {
       include: {
         vendorProfile: true,
       },
+    });
+
+    void this.notificationService.notifyRole(Role.ADMIN, {
+      type: NotificationType.PARTNER,
+      title: 'New Vendor Partner Application',
+      message: `${dto.businessName} (${dto.city}) submitted a partner registration request for approval.`,
+      link: '/admin/partners',
+      referenceId: newUser.vendorProfile?.id,
     });
 
     return {

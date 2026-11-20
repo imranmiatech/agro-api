@@ -12,6 +12,7 @@ model User {
   products        Product[]
   stripeCustomerId String?
   savedCards       SavedCard[]
+  notifications    Notification[]
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 

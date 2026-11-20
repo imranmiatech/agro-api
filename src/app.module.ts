@@ -21,6 +21,7 @@ import { OrderMessagesModule } from './order-messages/order-messages.module.js';
 import { ReviewsModule } from './reviews/reviews.module.js';
 import { VendorSupportModule } from './vendor-support/vendor-support.module.js';
 import { OverviewModule } from './overview/overview.module.js';
+import { NotificationModule } from './notification/notification.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -29,6 +30,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     PrismaModule,
     MailModule,
     AuthModule,
+    NotificationModule,
     ProfileModule,
     UsersModule,
     ProductsModule,

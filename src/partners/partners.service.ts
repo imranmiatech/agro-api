@@ -5,6 +5,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { NotificationService } from '../notification/notification.service.js';
+import { NotificationType, Role } from '../generated/prisma/enums.js';
 import {
   PartnerMetricsResponseDto,
   PartnerMetricCardDto,
@@ -41,7 +43,10 @@ const BANGLADESH_DIVISIONS: DivisionConfig[] = [
 export class PartnersService {
   private readonly logger = new Logger(PartnersService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   /**
    * 1. Get Top Metric Cards (Total Partners & Approved partners)
@@ -392,6 +397,19 @@ export class PartnersService {
         },
       },
     });
+
+    if (updated.user?.id) {
+      void this.notificationService.createForUser(updated.user.id, Role.VENDOR, {
+        type: NotificationType.PARTNER,
+        title: `Partner Application ${updated.status}`,
+        message:
+          updated.status === 'APPROVED'
+            ? `Congratulations! Your store "${updated.businessName}" has been approved.`
+            : `Your partner status for "${updated.businessName}" was updated to ${updated.status}.`,
+        link: '/vendor/overview',
+        referenceId: updated.id,
+      });
+    }
 
     return {
       id: updated.id,

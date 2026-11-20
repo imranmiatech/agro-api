@@ -10,6 +10,8 @@ import {
   TicketMessage,
   TicketStatus,
 } from './vendor-support.entity.js';
+import { NotificationService } from '../notification/notification.service.js';
+import { NotificationType, Role } from '../generated/prisma/enums.js';
 
 @Injectable()
 export class VendorSupportService {
@@ -17,7 +19,7 @@ export class VendorSupportService {
   private readonly storageFilePath = path.join(process.cwd(), 'uploads', 'vendor_support_tickets.json');
   private gateway?: any;
 
-  constructor() {
+  constructor(private readonly notificationService: NotificationService) {
     this.ensureStorage();
   }
 
@@ -163,6 +165,14 @@ export class VendorSupportService {
       this.gateway.broadcastNewTicket(newTicket);
     }
 
+    void this.notificationService.notifyRole(Role.ADMIN, {
+      type: NotificationType.SUPPORT,
+      title: `New Vendor Support Ticket ${newTicket.id}`,
+      message: `${newTicket.storeName || newTicket.vendorName}: ${newTicket.subject}`,
+      link: '/admin/support',
+      referenceId: newTicket.id,
+    });
+
     return newTicket;
   }
 
@@ -237,6 +247,24 @@ export class VendorSupportService {
 
     if (this.gateway) {
       this.gateway.broadcastNewMessage(id, newMsg, updatedTicket);
+    }
+
+    if (dto.authorRole === 'Vendor') {
+      void this.notificationService.notifyRole(Role.ADMIN, {
+        type: NotificationType.SUPPORT,
+        title: `Vendor Reply on Ticket ${id}`,
+        message: `${dto.author}: ${(dto.text || 'Sent an attachment').slice(0, 100)}`,
+        link: '/admin/support',
+        referenceId: id,
+      });
+    } else if (dto.authorRole === 'Admin' && updatedTicket.vendorId) {
+      void this.notificationService.notifyVendor(updatedTicket.vendorId, {
+        type: NotificationType.SUPPORT,
+        title: `Admin Replied on Ticket ${id}`,
+        message: `${dto.author}: ${(dto.text || 'Sent an attachment').slice(0, 100)}`,
+        link: '/vendor/admin-support',
+        referenceId: id,
+      });
     }
 
     return updatedTicket;

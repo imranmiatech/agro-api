@@ -8,10 +8,11 @@ import {
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StripeService } from '../billing/stripe.service.js';
 import { BillingService } from '../billing/billing.service.js';
+import { NotificationService } from '../notification/notification.service.js';
 import { CreateOrderDto } from './dto/create-order.dto.js';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto.js';
 import { QueryOrderDto } from './dto/query-order.dto.js';
-import { Role, OrderStatus, PaymentStatus, ProductStatus } from '../generated/prisma/enums.js';
+import { Role, OrderStatus, PaymentStatus, ProductStatus, NotificationType } from '../generated/prisma/enums.js';
 
 @Injectable()
 export class OrdersService {
@@ -21,6 +22,7 @@ export class OrdersService {
     private readonly prisma: PrismaService,
     private readonly stripeService: StripeService,
     private readonly billingService: BillingService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   /**
@@ -349,6 +351,29 @@ export class OrdersService {
     }
 
     this.logger.log(`Created new order #${createdOrder.orderNumber} for ${createdOrder.customerName}`);
+
+    // Trigger role-based notifications for Admin & involved Vendors
+    void this.notificationService.notifyRole(Role.ADMIN, {
+      type: NotificationType.ORDER,
+      title: `New Order #${createdOrder.orderNumber}`,
+      message: `${createdOrder.customerName} placed an order worth ৳${Number(createdOrder.total).toLocaleString()} (${resolvedItems.length} item${resolvedItems.length > 1 ? 's' : ''}).`,
+      link: '/admin/orders',
+      referenceId: createdOrder.id,
+    });
+
+    const uniqueVendorIds = Array.from(
+      new Set(resolvedItems.map((i) => i.vendorId).filter((v): v is string => Boolean(v))),
+    );
+    for (const vendorId of uniqueVendorIds) {
+      void this.notificationService.notifyVendor(vendorId, {
+        type: NotificationType.ORDER,
+        title: `New Order Received #${createdOrder.orderNumber}`,
+        message: `${createdOrder.customerName} ordered your products. Please review and prepare shipment.`,
+        link: '/vendor/orders',
+        referenceId: createdOrder.id,
+      });
+    }
+
     return this.formatOrder(createdOrder);
   }
 
@@ -706,6 +731,29 @@ export class OrdersService {
     const canonicalStatus = this.toCanonicalStatus(updated.status);
 
     this.logger.log(`Order #${existing.orderNumber} status updated to ${canonicalStatus}`);
+
+    if (existing.userId) {
+      void this.notificationService.createForUser(existing.userId, Role.CUSTOMER, {
+        type: NotificationType.ORDER,
+        title: `Order #${existing.orderNumber} ${canonicalStatus}`,
+        message: `Your order #${existing.orderNumber} status has been updated to ${canonicalStatus}.`,
+        link: '/orders',
+        referenceId: existing.id,
+      });
+    }
+
+    const vendorIds = Array.from(
+      new Set(existing.items.map((i) => i.vendorId).filter((v): v is string => Boolean(v))),
+    );
+    for (const vendorId of vendorIds) {
+      void this.notificationService.notifyVendor(vendorId, {
+        type: NotificationType.ORDER,
+        title: `Order #${existing.orderNumber} Updated`,
+        message: `Order #${existing.orderNumber} is now marked as ${canonicalStatus}.`,
+        link: '/vendor/orders',
+        referenceId: existing.id,
+      });
+    }
 
     return {
       id: updated.id,

@@ -3,6 +3,8 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { MailService } from '../mail/mail.service.js';
 import { StripeService } from '../billing/stripe.service.js';
 import { SoilPdfService } from './soil-pdf.service.js';
+import { NotificationService } from '../notification/notification.service.js';
+import { NotificationType, Role } from '../generated/prisma/enums.js';
 
 export type SoilTestStatus = 'Pending Pickup' | 'Sample Collected' | 'Lab Testing' | 'Completed';
 
@@ -70,6 +72,7 @@ export class SoilTestsService {
     private readonly mailService: MailService,
     private readonly stripeService: StripeService,
     private readonly soilPdfService: SoilPdfService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   private formatRequest(r: any): SoilTestRequest {
@@ -215,6 +218,22 @@ export class SoilTestsService {
         });
     }
 
+    void this.notificationService.notifyRole(Role.EXPERT, {
+      type: NotificationType.SOIL_TEST,
+      title: `New Soil Test Request #${created.requestNumber}`,
+      message: `${created.farmerName} (${created.district}) booked "${created.packageName}".`,
+      link: '/expert/soil-tests',
+      referenceId: created.id,
+    });
+
+    void this.notificationService.notifyRole(Role.ADMIN, {
+      type: NotificationType.SOIL_TEST,
+      title: `Soil Test Booked #${created.requestNumber}`,
+      message: `${created.farmerName} paid ৳${Number(created.amount).toLocaleString()} for ${created.packageName}.`,
+      link: '/admin/overview',
+      referenceId: created.id,
+    });
+
     return this.formatRequest(created);
   }
 
@@ -296,6 +315,14 @@ export class SoilTestsService {
           this.logger.error(`Failed to send report notification email to ${updated.email}:`, err);
         });
     }
+
+    void this.notificationService.notifyRole(Role.ADMIN, {
+      type: NotificationType.SOIL_TEST,
+      title: `Soil Report Published #${existing.requestNumber}`,
+      message: `Diagnostic report for ${updated.farmerName} (Score: ${fullLabReport.overallHealthScore}/100) has been published.`,
+      link: '/admin/overview',
+      referenceId: updated.id,
+    });
 
     return this.formatRequest(updated);
   }
