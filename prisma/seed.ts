@@ -1,15 +1,24 @@
 import 'dotenv/config';
+import dns from 'dns';
+import net from 'net';
 import bcrypt from 'bcryptjs';
 import pg from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client.js';
+
+// Avoid Node 22 Happy Eyeballs 250ms ETIMEDOUT on high-RTT cloud Postgres (e.g. Neon)
+dns.setDefaultResultOrder('ipv4first');
+net.setDefaultAutoSelectFamilyAttemptTimeout(5000);
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
   throw new Error('DATABASE_URL is not defined in environment');
 }
 
-const pool = new pg.Pool({ connectionString });
+const pool = new pg.Pool({
+  connectionString,
+  connectionTimeoutMillis: 30000,
+});
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 

@@ -2,17 +2,15 @@ model ProductReview {
   id            String   @id @default(uuid())
   orderId       String?
   productId     String
-  product       Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
-
   userId        String?
   customerName  String
   customerEmail String?
   rating        Int      @default(5)
-  comment       String?  @db.Text
+  comment       String?
   productName   String?
-
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId])
   @@index([orderId])

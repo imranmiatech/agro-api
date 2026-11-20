@@ -1,20 +1,20 @@
 model User {
-  id              String         @id @default(uuid())
-  name            String
-  email           String         @unique
-  password        String
-  avatar          String?
-  role            Role           @default(CUSTOMER)
-  status          UserStatus     @default(ACTIVE)
-  isEmailVerified Boolean        @default(false)
-  vendorProfile   VendorProfile?
-  expertProfile   ExpertProfile?
-  products        Product[]
+  id               String         @id @default(uuid())
+  name             String
+  email            String         @unique
+  password         String
+  role             Role           @default(CUSTOMER)
+  status           UserStatus     @default(ACTIVE)
+  isEmailVerified  Boolean        @default(false)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  avatar           String?
   stripeCustomerId String?
-  savedCards       SavedCard[]
+  expertProfile    ExpertProfile?
   notifications    Notification[]
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  products         Product[]
+  savedCards       SavedCard[]
+  vendorProfile    VendorProfile?
 
   @@index([email])
   @@index([role])
@@ -25,49 +25,36 @@ model User {
 }
 
 model VendorProfile {
-  id     String @id @default(uuid())
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // Step 1: Business Details
+  id               String        @id @default(uuid())
+  userId           String        @unique
   logo             String?
   businessName     String
-  slug             String? @unique
-  shortDescription String? @db.Text
+  slug             String?       @unique
+  shortDescription String?
   businessEmail    String
   businessPhone    String?
   category         String?
-
-  // Step 2: OTP Verification
-  isOtpVerified Boolean @default(false)
-
-  // Step 3: Business Location
-  country      String
-  city         String
-  address      String?
-  openingHours String?
-
-  // Step 4: Contact Information
-  contactPerson String
-  contactRole   String?
-  contactEmail  String
-  contactPhone  String
-
-  // Products & Transactions
-  products        Product[]
-  transactions    Transaction[]
-  orderItems      OrderItem[]
-  stripeAccountId String?
-
-  // Admin Moderation
-  status          VendorStatus @default(PENDING)
-  rejectionReason String?      @db.Text
-  suspendedReason String?      @db.Text
-  approvedAt      DateTime?
-  suspendedAt     DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  isOtpVerified    Boolean       @default(false)
+  country          String
+  city             String
+  address          String?
+  openingHours     String?
+  contactPerson    String
+  contactRole      String?
+  contactEmail     String
+  contactPhone     String
+  status           VendorStatus  @default(PENDING)
+  rejectionReason  String?
+  suspendedReason  String?
+  approvedAt       DateTime?
+  suspendedAt      DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  stripeAccountId  String?
+  orderItems       OrderItem[]
+  products         Product[]
+  transactions     Transaction[]
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([businessEmail])
   @@index([status])

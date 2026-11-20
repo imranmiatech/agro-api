@@ -3,19 +3,14 @@ model Article {
   title        String
   slug         String        @unique
   category     String
-  description  String?       @db.Text
-  content      String        @db.Text
-  coverImage   String?       @db.Text
+  description  String?
+  content      String
+  coverImage   String?
   readTime     String?       @default("5 min read")
-
-  // Author details
   authorName   String        @default("KrishiKunjo Contributor")
   authorRole   String?       @default("Agronomy Specialist")
-  authorAvatar String?       @db.Text
-
-  // Status
+  authorAvatar String?
   status       ContentStatus @default(DRAFT)
-
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 

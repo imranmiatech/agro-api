@@ -4,9 +4,9 @@ model ContactInquiry {
   email        String
   phone        String?
   subject      String?
-  message      String        @db.Text
+  message      String
   status       ContactStatus @default(PENDING)
-  replyMessage String?       @db.Text
+  replyMessage String?
   resolvedAt   DateTime?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt

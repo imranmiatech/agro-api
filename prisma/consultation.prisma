@@ -1,27 +1,27 @@
 model ConsultationTicket {
-  id                          String                @id @default(uuid())
-  ticketNumber                String                @unique
-  userId                      String?
-  farmerName                  String
-  farmerEmail                 String?
-  farmerPhone                 String?
-  subject                     String
-  category                    String                @default("Crop Disease")
-  crop                        String?
-  priority                    String                @default("Normal")
-  status                      String                @default("Waiting for Reply")
-  assignedExpertId            String?
-  assignedExpertName          String?
-  assignedExpertRole          String?
-  assignedExpertAvatar        String?
-  assignedExpertRating        Float?                @default(4.9)
+  id                           String                @id @default(uuid())
+  ticketNumber                 String                @unique
+  userId                       String?
+  farmerName                   String
+  farmerEmail                  String?
+  farmerPhone                  String?
+  subject                      String
+  category                     String                @default("Crop Disease")
+  crop                         String?
+  priority                     String                @default("Normal")
+  status                       String                @default("Waiting for Reply")
+  assignedExpertId             String?
+  assignedExpertName           String?
+  assignedExpertRole           String?
+  assignedExpertAvatar         String?
+  assignedExpertRating         Float?                @default(4.9)
   assignedExpertSpecialization String?
-  ratingStars                 Int?
-  ratingComment               String?
-  ratedAt                     DateTime?
-  messages                    ConsultationMessage[]
-  createdAt                   DateTime              @default(now())
-  updatedAt                   DateTime              @updatedAt
+  ratingStars                  Int?
+  ratingComment                String?
+  ratedAt                      DateTime?
+  createdAt                    DateTime              @default(now())
+  updatedAt                    DateTime              @updatedAt
+  messages                     ConsultationMessage[]
 
   @@index([status])
   @@index([priority])
@@ -32,14 +32,14 @@ model ConsultationTicket {
 model ConsultationMessage {
   id           String             @id @default(uuid())
   ticketId     String
-  ticket       ConsultationTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  sender       String             // "user" | "expert"
+  sender       String
   senderName   String
   senderRole   String?
   senderAvatar String?
-  text         String             @db.Text
+  text         String
   attachments  String[]           @default([])
   createdAt    DateTime           @default(now())
+  ticket       ConsultationTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 
   @@index([ticketId])
   @@index([createdAt])

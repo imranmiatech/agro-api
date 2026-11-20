@@ -75,5 +75,3 @@ enum NotificationType {
   BILLING
   SYSTEM
 }
-
-

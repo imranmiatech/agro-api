@@ -23,7 +23,6 @@ model SoilTestRequest {
   requestDate     DateTime  @default(now())
   completedDate   DateTime?
   labReport       Json?
-
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

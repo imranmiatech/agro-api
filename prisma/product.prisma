@@ -1,37 +1,29 @@
 model Product {
-  id             String        @id @default(uuid())
+  id             String          @id @default(uuid())
   name           String
-  slug           String        @unique
-  sku            String?       @unique
+  slug           String          @unique
+  sku            String?         @unique
   category       String
   price          Float
   compareAtPrice Float?
-  deliveryCharge Float         @default(0)
-  stock          Int           @default(0)
-  status         ProductStatus @default(ACTIVE)
-
-  summary        String?       @db.Text
-  description    String?       @db.Text
-  highlights     String[]      @default([])
-  badges         String[]      @default([])
-
-  images         String[]      @default([])
+  deliveryCharge Float           @default(0)
+  stock          Int             @default(0)
+  status         ProductStatus   @default(ACTIVE)
+  summary        String?
+  description    String?
+  highlights     String[]        @default([])
+  badges         String[]        @default([])
+  images         String[]        @default([])
   thumbnail      String?
-
   specifications Json?
-
-  // Relations
   vendorId       String?
-  vendor         VendorProfile? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
-
   createdById    String
-  createdBy      User          @relation(fields: [createdById], references: [id], onDelete: Cascade)
-
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
   orderItems     OrderItem[]
   reviews        ProductReview[]
-
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  createdBy      User            @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  vendor         VendorProfile?  @relation(fields: [vendorId], references: [id])
 
   @@index([category])
   @@index([status])

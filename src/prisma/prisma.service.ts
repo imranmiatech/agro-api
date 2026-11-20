@@ -1,4 +1,6 @@
 import 'dotenv/config';
+import dns from 'dns';
+import net from 'net';
 
 import {
   Injectable,
@@ -11,6 +13,10 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
 
 import { PrismaClient } from '../generated/prisma/client.js';
+
+// Prevent Node 22 Happy Eyeballs (250ms default) ETIMEDOUT against remote cloud Postgres (e.g. Neon)
+dns.setDefaultResultOrder('ipv4first');
+net.setDefaultAutoSelectFamilyAttemptTimeout(5000);
 
 @Injectable()
 export class PrismaService
